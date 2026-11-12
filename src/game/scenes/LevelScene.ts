@@ -8,6 +8,9 @@ import {
     ENEMY_ZIGZAG_CHANCE, ENEMY_ZIGZAG_AMPLITUDE, ENEMY_SHOOTER_CHANCE,
     PART_TYPES, PARTS_DROP_MIN, PARTS_DROP_MAX, PART_POOL_SIZE,
     PLAYER_START_SHIELDS, PLAYER_INVINCIBLE_DURATION, PLAYER_FLASH_INTERVAL, GAME_OVER_DELAY,
+    COIN_SPAWN_TIME, BOLT_SPAWN_TIME, ASTEROID_SPAWN_TIME, STORM_SPAWN_TIME,
+    PLAYER_MAX_SHIELDS, PICKUP_POOL_SIZE, BOOST_DURATION, BOOST_SPEED_MULTIPLIER, BOOST_TINT,
+    ASTEROID_POOL_SIZE, ASTEROID_SIZE, STORM_POOL_SIZE, STORM_SIZE,
 } from '../../config';
 import type { PartType } from '../../config';
 import { makeButton } from '../ui/makeButton';
@@ -15,6 +18,10 @@ import { Bullet } from '../objects/Bullet';
 import { Enemy } from '../objects/Enemy';
 import { EnemyBullet } from '../objects/EnemyBullet';
 import { Part } from '../objects/Part';
+import { Pickup } from '../objects/Pickup';
+import type { PickupKind } from '../objects/Pickup';
+import { Asteroid } from '../objects/Asteroid';
+import { Storm } from '../objects/Storm';
 
 export class LevelScene extends Scene {
     private starsFar!: Phaser.GameObjects.TileSprite;
@@ -25,7 +32,11 @@ export class LevelScene extends Scene {
     private enemies!: Phaser.Physics.Arcade.Group;
     private enemyBullets!: Phaser.Physics.Arcade.Group;
     private parts!: Phaser.Physics.Arcade.Group;
+    private pickups!: Phaser.Physics.Arcade.Group;
+    private asteroids!: Phaser.Physics.Arcade.Group;
+    private storms!: Phaser.Physics.Arcade.Group;
     private partsText!: Phaser.GameObjects.Text;
+    private boostUntil = 0;
     private shieldIcons: Phaser.GameObjects.Image[] = [];
     private shields = 0;
     private invincibleUntil = 0;
@@ -41,6 +52,8 @@ export class LevelScene extends Scene {
     create() {
         this.starsFar = this.add.tileSprite(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, ASSET_KEYS.starsFar);
         this.starsNear = this.add.tileSprite(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, ASSET_KEYS.starsNear);
+        this.starsFar.setDepth(-2);
+        this.starsNear.setDepth(-2);
 
         this.player = this.physics.add.image(GAME_WIDTH / 2, GAME_HEIGHT - 200, ASSET_KEYS.playerShip);
         const scale = SHIP_DISPLAY_SIZE / this.player.width;
@@ -55,17 +68,29 @@ export class LevelScene extends Scene {
         this.enemies = this.physics.add.group({ classType: Enemy, maxSize: ENEMY_POOL_SIZE, runChildUpdate: true });
         this.enemyBullets = this.physics.add.group({ classType: EnemyBullet, maxSize: ENEMY_BULLET_POOL_SIZE, runChildUpdate: true });
         this.parts = this.physics.add.group({ classType: Part, maxSize: PART_POOL_SIZE, runChildUpdate: true });
+        this.pickups = this.physics.add.group({ classType: Pickup, maxSize: PICKUP_POOL_SIZE, runChildUpdate: true });
+        this.asteroids = this.physics.add.group({ classType: Asteroid, maxSize: ASTEROID_POOL_SIZE, runChildUpdate: true });
+        this.storms = this.physics.add.group({ classType: Storm, maxSize: STORM_POOL_SIZE, runChildUpdate: true });
         this.lastFiredAt = 0;
         this.shields = PLAYER_START_SHIELDS;
         this.invincibleUntil = 0;
+        this.boostUntil = 0;
         this.dead = false;
 
         this.time.addEvent({ delay: ENEMY_SPAWN_INTERVAL, loop: true, callback: () => this.spawnEnemy() });
+        this.spawnEvery(COIN_SPAWN_TIME, () => this.spawnPickup('coin'));
+        this.spawnEvery(BOLT_SPAWN_TIME, () => this.spawnPickup('bolt'));
+        this.spawnEvery(ASTEROID_SPAWN_TIME, () => this.spawnAsteroid());
+        this.spawnEvery(STORM_SPAWN_TIME, () => this.spawnStorm());
 
         this.physics.add.overlap(this.bullets, this.enemies, (b, e) => this.onBulletHitsEnemy(b as Bullet, e as Enemy));
+        this.physics.add.overlap(this.bullets, this.asteroids, (b) => this.onBulletHitsAsteroid(b as Bullet));
         this.physics.add.overlap(this.player, this.parts, (_p, part) => this.onCollectPart(part as Part));
+        this.physics.add.overlap(this.player, this.pickups, (_p, pickup) => this.onCollectPickup(pickup as Pickup));
         this.physics.add.overlap(this.player, this.enemyBullets, (_p, b) => this.onPlayerHitByBullet(b as EnemyBullet));
         this.physics.add.overlap(this.player, this.enemies, (_p, e) => this.onPlayerHitsEnemy(e as Enemy));
+        this.physics.add.overlap(this.player, this.asteroids, () => this.onPlayerHitsAsteroid());
+        this.physics.add.overlap(this.player, this.storms, (_p, s) => this.onPlayerTouchesStorm(s as Storm));
 
         makeButton(this, 110, 60, 'Station', () => this.scene.start('StationScene'));
 
@@ -93,10 +118,16 @@ export class LevelScene extends Scene {
         if (this.cursors.up.isDown) dy -= 1;
         if (this.cursors.down.isDown) dy += 1;
 
+        const boosted = time < this.boostUntil;
+        if (!boosted && this.player.isTinted) {
+            this.player.clearTint();
+        }
+        const speed = boosted ? PLAYER_SPEED * BOOST_SPEED_MULTIPLIER : PLAYER_SPEED;
+
         if (dx !== 0 || dy !== 0) {
             const length = Math.sqrt(dx * dx + dy * dy);
-            this.player.x += (dx / length) * PLAYER_SPEED * dt;
-            this.player.y += (dy / length) * PLAYER_SPEED * dt;
+            this.player.x += (dx / length) * speed * dt;
+            this.player.y += (dy / length) * speed * dt;
         }
 
         this.player.x = Phaser.Math.Clamp(this.player.x, this.shipHalfWidth, GAME_WIDTH - this.shipHalfWidth);
@@ -128,8 +159,69 @@ export class LevelScene extends Scene {
         enemy.spawn(x, texture, zigzag ? 'zigzag' : 'straight', shooter, this.enemyBullets, this.time.now);
     }
 
+    // Calls spawn() over and over, waiting a random time in [min, max] ms in between.
+    private spawnEvery([min, max]: [number, number], spawn: () => void) {
+        this.time.delayedCall(Phaser.Math.Between(min, max), () => {
+            spawn();
+            this.spawnEvery([min, max], spawn);
+        });
+    }
+
+    private spawnPickup(kind: PickupKind) {
+        const pickup = this.pickups.get() as Pickup | null;
+        pickup?.spawn(Phaser.Math.Between(40, GAME_WIDTH - 40), kind);
+    }
+
+    private spawnAsteroid() {
+        const asteroid = this.asteroids.get() as Asteroid | null;
+        const margin = ASTEROID_SIZE[1] / 2;
+        asteroid?.spawn(Phaser.Math.Between(margin, GAME_WIDTH - margin));
+    }
+
+    private spawnStorm() {
+        const storm = this.storms.get() as Storm | null;
+        // Storms can hang partly off the edge, so there's always a way around them.
+        storm?.spawn(Phaser.Math.Between(STORM_SIZE / 4, GAME_WIDTH - STORM_SIZE / 4));
+    }
+
+    private onBulletHitsAsteroid(bullet: Bullet) {
+        if (!bullet.active || bullet.bounced) return;
+        bullet.bounce();
+    }
+
+    private onPlayerHitsAsteroid() {
+        if (this.isInvincible()) return;
+        this.takeHit();
+    }
+
+    // Storms are instant death — unless you have an EM shield, which breaks the storm up and is used up.
+    private onPlayerTouchesStorm(storm: Storm) {
+        if (this.dead || !storm.body?.enable) return;
+        const emShields = (this.registry.get('emShields') as number | undefined) ?? 0;
+        if (emShields > 0) {
+            this.registry.set('emShields', emShields - 1);
+            storm.dispel();
+            return;
+        }
+        this.die();
+    }
+
+    private onCollectPickup(pickup: Pickup) {
+        if (!pickup.active) return;
+        pickup.disableBody(true, true);
+        if (pickup.kind === 'coin') {
+            if (this.shields < PLAYER_MAX_SHIELDS) {
+                this.shields += 1;
+                this.updateShieldIcons();
+            }
+        } else {
+            this.boostUntil = this.time.now + BOOST_DURATION;
+            this.player.setTint(BOOST_TINT);
+        }
+    }
+
     private onBulletHitsEnemy(bullet: Bullet, enemy: Enemy) {
-        if (!bullet.active || !enemy.active) return;
+        if (!bullet.active || !enemy.active || bullet.bounced) return;
         const { x, y } = enemy;
         bullet.disableBody(true, true);
         enemy.disableBody(true, true);

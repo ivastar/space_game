@@ -17,6 +17,10 @@ export const ASSET_KEYS = {
     bullet: 'bullet',
     enemyBullet: 'enemyBullet',
     shieldIcon: 'shieldIcon',
+    coin: 'coin',
+    bolt: 'bolt',
+    asteroid: 'asteroid',
+    storm: 'storm',
 } as const;
 
 export const partTextureKey = (type: PartType) => `part_${type}`;
@@ -68,3 +72,26 @@ export const PLAYER_START_SHIELDS = 3; // hits you can take; the next hit after 
 export const PLAYER_INVINCIBLE_DURATION = 1500; // ms of flashing after a hit, when you can't be hit again
 export const PLAYER_FLASH_INTERVAL = 100; // ms per blink while flashing
 export const GAME_OVER_DELAY = 1000; // ms to watch the explosion before the Game Over screen
+
+// Phase 6: space objects
+// Spawn times are [min, max] ms; each new one comes a random time in that range after the last.
+export const COIN_SPAWN_TIME: [number, number] = [5000, 9000];
+export const BOLT_SPAWN_TIME: [number, number] = [9000, 14000];
+export const ASTEROID_SPAWN_TIME: [number, number] = [2000, 4000];
+export const STORM_SPAWN_TIME: [number, number] = [14000, 22000];
+
+export const PLAYER_MAX_SHIELDS = 5; // coins can't give you more shields than this
+export const PICKUP_FALL_SPEED = 120; // px/sec, coins and bolts
+export const PICKUP_POOL_SIZE = 10;
+
+export const BOOST_DURATION = 5000; // ms of speed boost from a lightning bolt
+export const BOOST_SPEED_MULTIPLIER = 1.7; // ship moves this many times faster while boosted
+export const BOOST_TINT = 0xfff3a0; // ship glows yellow while boosted
+
+export const ASTEROID_SPEED: [number, number] = [90, 180]; // px/sec, [min, max]
+export const ASTEROID_SIZE: [number, number] = [50, 110]; // px on screen, [min, max]
+export const ASTEROID_POOL_SIZE = 12;
+
+export const STORM_SPEED = 60; // px/sec — big and slow
+export const STORM_SIZE = 260; // px on screen
+export const STORM_POOL_SIZE = 3;

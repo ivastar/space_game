@@ -35,6 +35,10 @@ export class BootScene extends Scene {
             this.generatePartTexture(type);
         }
         this.generateShieldIconTexture();
+        this.generateCoinTexture();
+        this.generateBoltTexture();
+        this.generateAsteroidTexture();
+        this.generateStormTexture();
 
         const emptyInventory = Object.fromEntries(PART_TYPES.map(t => [t, 0])) as Record<PartType, number>;
         this.registry.set('parts', emptyInventory);
@@ -47,6 +51,92 @@ export class BootScene extends Scene {
         g.fillStyle(color, 1);
         g.fillRect(0, 0, width, height);
         g.generateTexture(key, width, height);
+        g.destroy();
+    }
+
+    // Placeholder art for the Phase 6 space objects, until Sasha draws them.
+    private generateCoinTexture() {
+        const s = 30;
+        const g = this.make.graphics({ x: 0, y: 0 }, false);
+        g.fillStyle(0xffc928, 1);
+        g.fillCircle(s / 2, s / 2, s / 2 - 1);
+        g.lineStyle(3, 0xb8860b, 1);
+        g.strokeCircle(s / 2, s / 2, s / 2 - 6);
+        g.generateTexture(ASSET_KEYS.coin, s, s);
+        g.destroy();
+    }
+
+    private generateBoltTexture() {
+        const w = 24;
+        const h = 36;
+        const g = this.make.graphics({ x: 0, y: 0 }, false);
+        g.fillStyle(0xfff04a, 1);
+        g.lineStyle(2, 0xffffff, 1);
+        g.beginPath();
+        g.moveTo(15, 1);
+        g.lineTo(2, 20);
+        g.lineTo(11, 20);
+        g.lineTo(8, h - 1);
+        g.lineTo(w - 2, 14);
+        g.lineTo(13, 14);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+        g.generateTexture(ASSET_KEYS.bolt, w, h);
+        g.destroy();
+    }
+
+    // A lumpy grey rock: a circle with a randomly wobbly edge, plus a few craters.
+    private generateAsteroidTexture() {
+        const s = 64;
+        const c = s / 2;
+        const g = this.make.graphics({ x: 0, y: 0 }, false);
+        g.fillStyle(0x8a7f74, 1);
+        g.lineStyle(2, 0x5b534b, 1);
+        g.beginPath();
+        const points = 12;
+        for (let i = 0; i < points; i++) {
+            const angle = (i / points) * Math.PI * 2;
+            const r = Phaser.Math.Between(22, 30);
+            const x = c + Math.cos(angle) * r;
+            const y = c + Math.sin(angle) * r;
+            if (i === 0) g.moveTo(x, y);
+            else g.lineTo(x, y);
+        }
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+        g.fillStyle(0x6b6259, 1);
+        g.fillCircle(c - 8, c - 6, 5);
+        g.fillCircle(c + 9, c + 4, 4);
+        g.fillCircle(c - 2, c + 12, 3);
+        g.generateTexture(ASSET_KEYS.asteroid, s, s);
+        g.destroy();
+    }
+
+    // A glowing purple cloud with white crackles of lightning inside.
+    private generateStormTexture() {
+        const s = 256;
+        const c = s / 2;
+        const g = this.make.graphics({ x: 0, y: 0 }, false);
+        for (let r = c; r > 8; r -= 8) {
+            g.fillStyle(0xa04cff, 0.06 + (1 - r / c) * 0.12);
+            g.fillCircle(c, c, r);
+        }
+        g.lineStyle(2, 0xe8d4ff, 0.9);
+        for (let i = 0; i < 5; i++) {
+            let x = c + Phaser.Math.Between(-60, 60);
+            let y = c + Phaser.Math.Between(-60, 60);
+            g.beginPath();
+            g.moveTo(x, y);
+            for (let j = 0; j < 4; j++) {
+                x += Phaser.Math.Between(-18, 18);
+                y += Phaser.Math.Between(-18, 18);
+                g.lineTo(x, y);
+            }
+            g.strokePath();
+        }
+        g.generateTexture(ASSET_KEYS.storm, s, s);
         g.destroy();
     }
 
