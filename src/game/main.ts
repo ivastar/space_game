@@ -1,20 +1,36 @@
-import { Game as MainGame } from './scenes/Game';
-import { AUTO, Game, Scale,Types } from 'phaser';
+import { BootScene } from './scenes/BootScene';
+import { MenuScene } from './scenes/MenuScene';
+import { GalaxyMapScene } from './scenes/GalaxyMapScene';
+import { LevelScene } from './scenes/LevelScene';
+import { StationScene } from './scenes/StationScene';
+import { GameOverScene } from './scenes/GameOverScene';
+import { GAME_WIDTH, GAME_HEIGHT } from '../config';
+import { AUTO, Game, Scale, Types } from 'phaser';
 
 // Find out more information about the Game Config at:
 // https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
 const config: Types.Core.GameConfig = {
     type: AUTO,
-    width: 1024,
-    height: 768,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
     parent: 'game-container',
-    backgroundColor: '#028af8',
+    backgroundColor: '#05050f',
+    pixelArt: true,
+    physics: {
+        default: 'arcade',
+        arcade: { debug: false },
+    },
     scale: {
         mode: Scale.FIT,
         autoCenter: Scale.CENTER_BOTH
     },
     scene: [
-        MainGame
+        BootScene,
+        MenuScene,
+        GalaxyMapScene,
+        LevelScene,
+        StationScene,
+        GameOverScene,
     ]
 };
 
