@@ -23,19 +23,21 @@ We are building a 2D browser game in **TypeScript + Phaser 3 + Vite**. The proje
 - Laptop: arrow keys to steer, Space to shoot, Shift for hyperspeed.
 - Touch screen: a control console at the bottom of the screen with a steering wheel (or a D-pad), two pink blast buttons, and a hyperspeed button.
 
-**Coding guidelines:** Keep the code modular, with one class per file in `src/`. Put all tunable numbers (speeds, spawn rates, prices) in one `src/config.ts`. Use simple placeholder shapes for graphics at first, so that real sprites can be swapped in later. Keep it simple and readable, because a kid is helping build this.
+**Coding guidelines:** Keep the code modular, with one class per file in `src/`. Put all tunable numbers (speeds, spawn rates, prices) in one `src/config.ts`. Use Sasha's real pixel-art sprites from the start (see Art pipeline below) instead of placeholder shapes — seeing her own art on screen early is a big part of the fun. Fall back to a simple placeholder shape only for things that don't have art yet. Keep it simple and readable, because a kid is helping build this.
+
+**Art pipeline (from Phase 1 onward):** Sasha's sprites live in `assets/` (`shasha_guard.png` = player ship, `zak_guard.png` and `zak_bot_ship.png` = bad-guy ships). Copy them into `public/assets/` so `BootScene` can load them with `this.load.image(...)`. They're tiny pixel-art PNGs (roughly 26×8 to 48×16 px), so they need to be scaled up a lot to read on a 720×1280 canvas — keep `pixelArt: true` / `antialias: false` in the Phaser game config so the upscale stays crisp and blocky instead of blurry, and set each sprite's `.setScale(...)` (or a fixed display width/height) in config so ships land around 60–100px on screen. As Sasha draws more art (parts, coins, bolts, asteroids, storms, backgrounds), drop new PNGs into `assets/`/`public/assets/` and wire them up in the same phase that introduces that object, rather than waiting until the end.
 
 ## Phase 1 – Scene skeleton
 
-Set up these Phaser scenes with simple placeholder screens and buttons to move between them: `BootScene` (loads assets), `MenuScene` (title and Start button), `GalaxyMapScene`, `LevelScene`, `StationScene` (marketplace and garage), and `GameOverScene`. Set a portrait-friendly game size (for example 720×1280) with Phaser's scale mode FIT, so it fits phones, iPads and laptops.
+Set up these Phaser scenes with simple placeholder screens and buttons to move between them: `BootScene` (loads assets, including Sasha's and Zak's ship sprites), `MenuScene` (title and Start button, using the player ship sprite), `GalaxyMapScene`, `LevelScene`, `StationScene` (marketplace and garage), and `GameOverScene`. Set a portrait-friendly game size (for example 720×1280) with Phaser's scale mode FIT, so it fits phones, iPads and laptops.
 
-**Test:** you can click through every scene.
+**Test:** you can click through every scene, and the title screen shows the real Sasha ship sprite.
 
 ## Phase 2 – Flying the ship
 
-In `LevelScene`, add the player ship near the bottom and a scrolling starfield background (two parallax layers) to give the feeling of flying upwards. Arrow keys move the ship left, right, up and down within the screen bounds.
+In `LevelScene`, add the player ship near the bottom using the `shasha_guard` sprite, and a scrolling starfield background (two parallax layers) to give the feeling of flying upwards. Arrow keys move the ship left, right, up and down within the screen bounds.
 
-**Test:** the ship moves smoothly and the stars scroll.
+**Test:** the real ship sprite moves smoothly and the stars scroll.
 
 ## Phase 3 – Shooting
 
@@ -43,7 +45,7 @@ The Space key fires laser bullets upwards. Use a Phaser object pool (group) for 
 
 ## Phase 4 – Enemies and parts
 
-Bad ships spawn at the top and fly down in simple patterns: straight down, zig-zag, and occasionally shooting back. When a bullet hits a bad ship, it explodes and drops 1–3 ship parts (for example engine, wing, cockpit, cannon). The player collects parts by flying over them. Show a parts counter in the HUD.
+Bad ships spawn at the top using the `zak_guard` and `zak_bot_ship` sprites (scaled up to match the player ship's on-screen size) and fly down in simple patterns: straight down, zig-zag, and occasionally shooting back. When a bullet hits a bad ship, it explodes and drops 1–3 ship parts (for example engine, wing, cockpit, cannon) — use a placeholder shape per part type until Sasha draws part icons, then swap them in. The player collects parts by flying over them. Show a parts counter in the HUD.
 
 ## Phase 5 – Lives, shield and game over
 
@@ -60,7 +62,12 @@ Spawn these from the top at rates set in the config:
 
 ## Phase 7 – Hyperspeed
 
-Shift (or the touch button) triggers hyperspeed: the stars stretch, scrolling speeds up, and the ship is briefly harder to hit. Then a cooldown starts, shown as a small bar in the HUD.
+Phase 7 – Hyperdrive jump
+Add a hyperdrive token that drops at random from some destroyed enemy ships, like coins do. Collecting it charges the hyperdrive, and the HUD shows how many charges you have. Shift (or the touch button) uses one charge to jump.
+The jump should feel like Star Wars: the speed starts slow, ramps up fast, then slows down again at the end. All the stars stretch into long streaks, both the near and the far layers, with the near stars streaking longest. Ships, asteroids, coins and other objects disappear.
+
+During the jump the player passes straight through enemies, asteroids, storms and bullets. There are no collisions and no damage. Collisions come back as soon as the jump ends. Put the drop rate, timings and speeds in config.ts.
+
 
 ## Phase 8 – Touch controls
 
@@ -88,9 +95,9 @@ Ship recipes say which parts you need to build each ship (for example scout, fig
 
 Save credits, parts, upgrades, garage ships and unlocked systems to `localStorage`, so progress stays after the browser is closed. Add Continue and New Game options to the menu.
 
-## Phase 14 – Art and sound
+## Phase 14 – Remaining art and sound
 
-Replace the placeholder shapes with real sprites, for example pixel art drawn by Sasha, saved as PNG files in `public/assets/`. Add sound effects (laser, explosion, pickup) and background music, with a mute button. Remember that iPads only play audio after the first tap.
+The ship sprites have been real pixel art since Phase 1. Now replace any still-placeholder shapes (parts, coins, lightning bolts, asteroids, EM storms, galaxy map icons, backgrounds) with more pixel art drawn by Sasha, saved as PNG files in `assets/` and copied into `public/assets/`. Add sound effects (laser, explosion, pickup) and background music, with a mute button. Remember that iPads only play audio after the first tap.
 
 ## Phase 15 – Publishing
 

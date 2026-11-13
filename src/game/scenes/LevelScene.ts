@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import {
     ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, SHIP_DISPLAY_SIZE,
-    PLAYER_SPEED, STAR_SCROLL_SPEED_FAR, STAR_SCROLL_SPEED_NEAR,
+    PLAYER_SPEED,
     BULLET_FIRE_DELAY, BULLET_POOL_SIZE,
     ENEMY_SPAWN_INTERVAL, ENEMY_POOL_SIZE, ENEMY_BULLET_POOL_SIZE,
     ENEMY_ZIGZAG_CHANCE, ENEMY_ZIGZAG_AMPLITUDE, ENEMY_SHOOTER_CHANCE,
@@ -11,7 +11,10 @@ import {
     COIN_SPAWN_TIME, BOLT_SPAWN_TIME, ASTEROID_SPAWN_TIME, STORM_SPAWN_TIME,
     PLAYER_MAX_SHIELDS, PICKUP_POOL_SIZE, BOOST_DURATION, BOOST_SPEED_MULTIPLIER, BOOST_TINT,
     ASTEROID_POOL_SIZE, ASTEROID_SIZE, STORM_POOL_SIZE, STORM_SIZE,
+    HYPERDRIVE_DROP_CHANCE, HYPERDRIVE_START_CHARGES, JUMP_RAMP_UP, JUMP_CRUISE, JUMP_RAMP_DOWN,
+    JUMP_SPEED_MULTIPLIER, JUMP_OBJECTS_FADE,
 } from '../../config';
+import { Starfield } from '../objects/Starfield';
 import type { PartType } from '../../config';
 import { makeButton } from '../ui/makeButton';
 import { Bullet } from '../objects/Bullet';
@@ -24,8 +27,7 @@ import { Asteroid } from '../objects/Asteroid';
 import { Storm } from '../objects/Storm';
 
 export class LevelScene extends Scene {
-    private starsFar!: Phaser.GameObjects.TileSprite;
-    private starsNear!: Phaser.GameObjects.TileSprite;
+    private starfield!: Starfield;
     private player!: Phaser.Physics.Arcade.Image;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private bullets!: Phaser.Physics.Arcade.Group;
@@ -37,6 +39,10 @@ export class LevelScene extends Scene {
     private storms!: Phaser.Physics.Arcade.Group;
     private partsText!: Phaser.GameObjects.Text;
     private boostUntil = 0;
+    private jumpKey!: Phaser.Input.Keyboard.Key;
+    private jumpCharges = 0;
+    private jumping = false;
+    private chargesText!: Phaser.GameObjects.Text;
     private shieldIcons: Phaser.GameObjects.Image[] = [];
     private shields = 0;
     private invincibleUntil = 0;
@@ -50,10 +56,7 @@ export class LevelScene extends Scene {
     }
 
     create() {
-        this.starsFar = this.add.tileSprite(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, ASSET_KEYS.starsFar);
-        this.starsNear = this.add.tileSprite(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, ASSET_KEYS.starsNear);
-        this.starsFar.setDepth(-2);
-        this.starsNear.setDepth(-2);
+        this.starfield = new Starfield(this);
 
         this.player = this.physics.add.image(GAME_WIDTH / 2, GAME_HEIGHT - 200, ASSET_KEYS.playerShip);
         const scale = SHIP_DISPLAY_SIZE / this.player.width;
@@ -63,6 +66,7 @@ export class LevelScene extends Scene {
         this.shipHalfHeight = this.player.displayHeight / 2;
 
         this.cursors = this.input.keyboard!.createCursorKeys();
+        this.jumpKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
 
         this.bullets = this.physics.add.group({ classType: Bullet, maxSize: BULLET_POOL_SIZE, runChildUpdate: true });
         this.enemies = this.physics.add.group({ classType: Enemy, maxSize: ENEMY_POOL_SIZE, runChildUpdate: true });
@@ -75,9 +79,15 @@ export class LevelScene extends Scene {
         this.shields = PLAYER_START_SHIELDS;
         this.invincibleUntil = 0;
         this.boostUntil = 0;
+        this.jumpCharges = HYPERDRIVE_START_CHARGES;
+        this.jumping = false;
         this.dead = false;
 
-        this.time.addEvent({ delay: ENEMY_SPAWN_INTERVAL, loop: true, callback: () => this.spawnEnemy() });
+        this.time.addEvent({
+            delay: ENEMY_SPAWN_INTERVAL,
+            loop: true,
+            callback: () => { if (!this.jumping) this.spawnEnemy(); },
+        });
         this.spawnEvery(COIN_SPAWN_TIME, () => this.spawnPickup('coin'));
         this.spawnEvery(BOLT_SPAWN_TIME, () => this.spawnPickup('bolt'));
         this.spawnEvery(ASTEROID_SPAWN_TIME, () => this.spawnAsteroid());
@@ -101,15 +111,24 @@ export class LevelScene extends Scene {
 
         this.shieldIcons = [];
         this.updateShieldIcons();
+
+        this.add.image(GAME_WIDTH - 95, 110, ASSET_KEYS.hyperdriveToken).setDepth(10);
+        this.chargesText = this.add.text(GAME_WIDTH - 72, 110, '', {
+            fontFamily: 'Arial', fontSize: 28, color: '#ffffff',
+        }).setOrigin(0, 0.5).setDepth(10);
+        this.updateChargesText();
     }
 
     update(time: number, delta: number) {
         const dt = delta / 1000;
 
-        this.starsFar.tilePositionY -= STAR_SCROLL_SPEED_FAR * dt;
-        this.starsNear.tilePositionY -= STAR_SCROLL_SPEED_NEAR * dt;
+        this.starfield.update(dt);
 
         if (this.dead) return;
+
+        if (Phaser.Input.Keyboard.JustDown(this.jumpKey)) {
+            this.tryJump();
+        }
 
         let dx = 0;
         let dy = 0;
@@ -133,7 +152,7 @@ export class LevelScene extends Scene {
         this.player.x = Phaser.Math.Clamp(this.player.x, this.shipHalfWidth, GAME_WIDTH - this.shipHalfWidth);
         this.player.y = Phaser.Math.Clamp(this.player.y, this.shipHalfHeight, GAME_HEIGHT - this.shipHalfHeight);
 
-        if (this.cursors.space.isDown && time - this.lastFiredAt >= BULLET_FIRE_DELAY) {
+        if (!this.jumping && this.cursors.space.isDown && time - this.lastFiredAt >= BULLET_FIRE_DELAY) {
             this.fire(time);
         }
     }
@@ -159,17 +178,85 @@ export class LevelScene extends Scene {
         enemy.spawn(x, texture, zigzag ? 'zigzag' : 'straight', shooter, this.enemyBullets, this.time.now);
     }
 
+    // Uses one hyperdrive charge to jump, Star Wars style: everything else vanishes, the stars
+    // speed up slowly at first and then faster and faster into long streaks, cruise, and slow back down.
+    private tryJump() {
+        if (this.jumping) return;
+        if (this.jumpCharges === 0) {
+            // No charges: flash the counter red so you can see why nothing happened.
+            this.chargesText.setColor('#ff4444');
+            this.time.delayedCall(300, () => this.chargesText.setColor('#ffffff'));
+            return;
+        }
+
+        this.jumpCharges -= 1;
+        this.updateChargesText();
+        this.jumping = true;
+
+        // No body means no collisions: you pass straight through everything during the jump.
+        this.player.disableBody(false, false);
+
+        for (const group of [this.bullets, this.enemies, this.enemyBullets, this.parts, this.pickups, this.asteroids, this.storms]) {
+            for (const obj of group.getMatching('active', true) as Phaser.Physics.Arcade.Image[]) {
+                this.vanish(obj);
+            }
+        }
+
+        this.tweens.add({
+            targets: this.starfield,
+            speedMultiplier: JUMP_SPEED_MULTIPLIER,
+            duration: JUMP_RAMP_UP,
+            ease: 'Cubic.easeIn',
+            completeDelay: JUMP_CRUISE,
+            onComplete: () => {
+                this.tweens.add({
+                    targets: this.starfield,
+                    speedMultiplier: 1,
+                    duration: JUMP_RAMP_DOWN,
+                    ease: 'Cubic.easeOut',
+                    onComplete: () => this.endJump(),
+                });
+            },
+        });
+    }
+
+    private endJump() {
+        this.jumping = false;
+        this.player.enableBody(); // collisions are back
+    }
+
+    // Fades an object out and puts it back in its pool. It stops moving and can't
+    // hit anything straight away, and stops doing things like shooting.
+    private vanish(obj: Phaser.Physics.Arcade.Image) {
+        obj.disableBody(false, false);
+        obj.setActive(false);
+        this.tweens.add({
+            targets: obj,
+            alpha: 0,
+            duration: JUMP_OBJECTS_FADE,
+            onComplete: () => {
+                obj.setVisible(false);
+                obj.setAlpha(1);
+            },
+        });
+    }
+
+    private updateChargesText() {
+        this.chargesText.setText(`x ${this.jumpCharges}`);
+    }
+
     // Calls spawn() over and over, waiting a random time in [min, max] ms in between.
+    // Nothing new appears during a jump.
     private spawnEvery([min, max]: [number, number], spawn: () => void) {
         this.time.delayedCall(Phaser.Math.Between(min, max), () => {
-            spawn();
+            if (!this.jumping) spawn();
             this.spawnEvery([min, max], spawn);
         });
     }
 
-    private spawnPickup(kind: PickupKind) {
+    private spawnPickup(kind: PickupKind, x = Phaser.Math.Between(40, GAME_WIDTH - 40), y?: number) {
         const pickup = this.pickups.get() as Pickup | null;
-        pickup?.spawn(Phaser.Math.Between(40, GAME_WIDTH - 40), kind);
+        pickup?.spawn(x, kind, y);
     }
 
     private spawnAsteroid() {
@@ -214,9 +301,12 @@ export class LevelScene extends Scene {
                 this.shields += 1;
                 this.updateShieldIcons();
             }
-        } else {
+        } else if (pickup.kind === 'bolt') {
             this.boostUntil = this.time.now + BOOST_DURATION;
             this.player.setTint(BOOST_TINT);
+        } else {
+            this.jumpCharges += 1;
+            this.updateChargesText();
         }
     }
 
@@ -227,6 +317,9 @@ export class LevelScene extends Scene {
         enemy.disableBody(true, true);
         this.explode(x, y);
         this.dropParts(x, y);
+        if (Math.random() < HYPERDRIVE_DROP_CHANCE) {
+            this.spawnPickup('hyperdrive', x, y);
+        }
     }
 
     private explode(x: number, y: number) {

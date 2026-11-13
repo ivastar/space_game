@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import {
-    ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, BULLET_WIDTH, BULLET_HEIGHT, BULLET_COLOR,
+    ASSET_KEYS, BULLET_WIDTH, BULLET_HEIGHT, BULLET_COLOR,
     ENEMY_BULLET_COLOR, PART_TYPES, PART_COLORS, PART_SIZE, partTextureKey,
 } from '../../config';
 import type { PartType } from '../../config';
@@ -19,16 +19,6 @@ export class BootScene extends Scene {
     }
 
     create() {
-        // The tile is a full screen wide and two screens tall, so the
-        // repeat period is well off-screen and doesn't read as a grid.
-        const tileWidth = GAME_WIDTH;
-        const tileHeight = GAME_HEIGHT * 2;
-
-        // Far layer: lots of small, dim dots — a near-static haze.
-        this.generateStarTexture(ASSET_KEYS.starsFar, tileWidth, tileHeight, 220, 2, 3, 0x9fb4e0, 0.4, 0.7);
-        // Near layer: fewer, slightly bigger, bright dots — but still small dots, not streaks.
-        this.generateStarTexture(ASSET_KEYS.starsNear, tileWidth, tileHeight, 55, 2, 3, 0xffffff, 0.85, 1);
-
         this.generateRectTexture(ASSET_KEYS.bullet, BULLET_WIDTH, BULLET_HEIGHT, BULLET_COLOR);
         this.generateRectTexture(ASSET_KEYS.enemyBullet, BULLET_WIDTH + 2, BULLET_HEIGHT - 4, ENEMY_BULLET_COLOR);
         for (const type of PART_TYPES) {
@@ -39,6 +29,7 @@ export class BootScene extends Scene {
         this.generateBoltTexture();
         this.generateAsteroidTexture();
         this.generateStormTexture();
+        this.generateHyperdriveTokenTexture();
 
         const emptyInventory = Object.fromEntries(PART_TYPES.map(t => [t, 0])) as Record<PartType, number>;
         this.registry.set('parts', emptyInventory);
@@ -140,6 +131,27 @@ export class BootScene extends Scene {
         g.destroy();
     }
 
+    // A blue token with a white double arrow pointing up: one hyperdrive jump charge.
+    private generateHyperdriveTokenTexture() {
+        const s = 30;
+        const c = s / 2;
+        const g = this.make.graphics({ x: 0, y: 0 }, false);
+        g.fillStyle(0x2a5cff, 1);
+        g.fillCircle(c, c, c - 1);
+        g.lineStyle(2, 0xffffff, 1);
+        g.strokeCircle(c, c, c - 1);
+        g.lineStyle(3, 0xffffff, 1);
+        for (const top of [9, 15]) {
+            g.beginPath();
+            g.moveTo(c - 6, top + 6);
+            g.lineTo(c, top);
+            g.lineTo(c + 6, top + 6);
+            g.strokePath();
+        }
+        g.generateTexture(ASSET_KEYS.hyperdriveToken, s, s);
+        g.destroy();
+    }
+
     // Placeholder HUD shield icon (one per remaining shield hit).
     private generateShieldIconTexture() {
         const w = 28;
@@ -194,25 +206,6 @@ export class BootScene extends Scene {
                 break;
         }
         g.generateTexture(partTextureKey(type), s, s);
-        g.destroy();
-    }
-
-    // No star art exists yet, so we draw a tileable field of dots once and
-    // reuse it as a TileSprite. Swap for real art in Phase 14.
-    private generateStarTexture(
-        key: string, width: number, height: number, count: number,
-        minSize: number, maxSize: number, color: number, minAlpha: number, maxAlpha: number,
-    ) {
-        const g = this.make.graphics({ x: 0, y: 0 }, false);
-        for (let i = 0; i < count; i++) {
-            const x = Phaser.Math.Between(0, width);
-            const y = Phaser.Math.Between(0, height);
-            const size = Phaser.Math.Between(minSize, maxSize);
-            const alpha = Phaser.Math.FloatBetween(minAlpha, maxAlpha);
-            g.fillStyle(color, alpha);
-            g.fillRect(x, y, size, size);
-        }
-        g.generateTexture(key, width, height);
         g.destroy();
     }
 }

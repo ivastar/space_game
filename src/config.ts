@@ -12,8 +12,6 @@ export const ASSET_KEYS = {
     playerShip: 'shasha_guard',
     enemyGuard: 'zak_guard',
     enemyBot: 'zak_bot_ship',
-    starsFar: 'starsFar',
-    starsNear: 'starsNear',
     bullet: 'bullet',
     enemyBullet: 'enemyBullet',
     shieldIcon: 'shieldIcon',
@@ -21,6 +19,7 @@ export const ASSET_KEYS = {
     bolt: 'bolt',
     asteroid: 'asteroid',
     storm: 'storm',
+    hyperdriveToken: 'hyperdriveToken',
 } as const;
 
 export const partTextureKey = (type: PartType) => `part_${type}`;
@@ -31,6 +30,8 @@ export const PLAYER_SPEED = 320; // px/sec
 // actually reads as two layers of depth, not one twinkly field.
 export const STAR_SCROLL_SPEED_FAR = 20; // px/sec, distant parallax layer
 export const STAR_SCROLL_SPEED_NEAR = 90; // px/sec, near parallax layer
+export const STAR_COUNT_FAR = 110; // small dim stars on screen at once
+export const STAR_COUNT_NEAR = 28; // bright stars on screen at once
 
 // Phase 3: shooting
 export const BULLET_SPEED = 900; // px/sec, upwards
@@ -95,3 +96,14 @@ export const ASTEROID_POOL_SIZE = 12;
 export const STORM_SPEED = 60; // px/sec — big and slow
 export const STORM_SIZE = 260; // px on screen
 export const STORM_POOL_SIZE = 3;
+
+// Phase 7: hyperdrive jump
+export const HYPERDRIVE_DROP_CHANCE = 0.2; // 0..1, chance a destroyed bad ship drops a hyperdrive token
+export const HYPERDRIVE_START_CHARGES = 0; // jump charges you start each level with
+export const JUMP_RAMP_UP = 900; // ms speeding up: starts slow, then faster and faster
+export const JUMP_CRUISE = 1200; // ms at full jump speed
+export const JUMP_RAMP_DOWN = 1200; // ms slowing back down to normal
+export const JUMP_SPEED_MULTIPLIER = 40; // stars move this many times faster at full jump speed
+// Streak length = how far a star moves in this many seconds, so faster (near) stars streak longer.
+export const JUMP_STREAK_SECONDS = 0.06;
+export const JUMP_OBJECTS_FADE = 250; // ms for ships, asteroids, coins etc. to vanish when the jump starts
