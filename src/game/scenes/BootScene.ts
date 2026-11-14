@@ -5,6 +5,7 @@ import {
     ENEMY_BULLET_COLOR, PART_TYPES, PART_COLORS, PART_SIZE, partTextureKey,
 } from '../../config';
 import type { PartType } from '../../config';
+import { newGameState } from '../GameState';
 
 export class BootScene extends Scene {
     constructor() {
@@ -30,11 +31,28 @@ export class BootScene extends Scene {
         this.generateAsteroidTexture();
         this.generateStormTexture();
         this.generateHyperdriveTokenTexture();
+        this.generateSonicBlastTexture();
 
-        const emptyInventory = Object.fromEntries(PART_TYPES.map(t => [t, 0])) as Record<PartType, number>;
-        this.registry.set('parts', emptyInventory);
+        this.registry.set('gameState', newGameState());
 
         this.scene.start('MenuScene');
+    }
+
+    // Two curved blue waves, like a sound wave flying upwards.
+    private generateSonicBlastTexture() {
+        const w = 64;
+        const h = 26;
+        const g = this.make.graphics({ x: 0, y: 0 }, false);
+        g.lineStyle(4, 0x6fe8ff, 1);
+        g.beginPath();
+        g.arc(w / 2, 34, 30, Math.PI * 1.2, Math.PI * 1.8);
+        g.strokePath();
+        g.lineStyle(3, 0xd8f8ff, 0.8);
+        g.beginPath();
+        g.arc(w / 2, 40, 26, Math.PI * 1.25, Math.PI * 1.75);
+        g.strokePath();
+        g.generateTexture(ASSET_KEYS.sonicBlast, w, h);
+        g.destroy();
     }
 
     private generateRectTexture(key: string, width: number, height: number, color: number) {

@@ -4,19 +4,24 @@ import {
     ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, SHIP_DISPLAY_SIZE,
     PLAYER_SPEED,
     BULLET_FIRE_DELAY, BULLET_POOL_SIZE,
-    ENEMY_SPAWN_INTERVAL, ENEMY_POOL_SIZE, ENEMY_BULLET_POOL_SIZE,
-    ENEMY_ZIGZAG_CHANCE, ENEMY_ZIGZAG_AMPLITUDE, ENEMY_SHOOTER_CHANCE,
+    ENEMY_POOL_SIZE, ENEMY_BULLET_POOL_SIZE,
+    ENEMY_ZIGZAG_CHANCE, ENEMY_ZIGZAG_AMPLITUDE,
     PART_TYPES, PARTS_DROP_MIN, PARTS_DROP_MAX, PART_POOL_SIZE,
-    PLAYER_START_SHIELDS, PLAYER_INVINCIBLE_DURATION, PLAYER_FLASH_INTERVAL, GAME_OVER_DELAY,
-    COIN_SPAWN_TIME, BOLT_SPAWN_TIME, ASTEROID_SPAWN_TIME, STORM_SPAWN_TIME,
+    PLAYER_INVINCIBLE_DURATION, PLAYER_FLASH_INTERVAL, GAME_OVER_DELAY,
+    COIN_SPAWN_TIME, BOLT_SPAWN_TIME,
     PLAYER_MAX_SHIELDS, PICKUP_POOL_SIZE, BOOST_DURATION, BOOST_SPEED_MULTIPLIER, BOOST_TINT,
     ASTEROID_POOL_SIZE, ASTEROID_SIZE, STORM_POOL_SIZE, STORM_SIZE,
     HYPERDRIVE_DROP_CHANCE, HYPERDRIVE_START_CHARGES, JUMP_RAMP_UP, JUMP_CRUISE, JUMP_RAMP_DOWN,
     JUMP_SPEED_MULTIPLIER, JUMP_OBJECTS_FADE,
+    LEVELS, JUMP_DISTANCE_FACTOR, ARRIVAL_DELAY,
+    SPEED_UPGRADE_STEP, FIRE_RATE_UPGRADE_STEP, SONIC_FIRE_DELAY, SONIC_POOL_SIZE,
 } from '../../config';
 import { Starfield } from '../objects/Starfield';
-import type { PartType } from '../../config';
-import { makeButton } from '../ui/makeButton';
+import type { LevelSettings } from '../../config';
+import { getGameState, startingShields } from '../GameState';
+import type { GameState } from '../GameState';
+import { SonicBlast } from '../objects/SonicBlast';
+import { ProgressBar } from '../ui/ProgressBar';
 import { Bullet } from '../objects/Bullet';
 import { Enemy } from '../objects/Enemy';
 import { EnemyBullet } from '../objects/EnemyBullet';
@@ -27,6 +32,17 @@ import { Asteroid } from '../objects/Asteroid';
 import { Storm } from '../objects/Storm';
 
 export class LevelScene extends Scene {
+    private state!: GameState;
+    private level!: LevelSettings;
+    private playerSpeed = 0; // includes the engine upgrade
+    private fireDelay = 0; // includes the laser upgrade
+    private sonicKey!: Phaser.Input.Keyboard.Key;
+    private sonicBlasts!: Phaser.Physics.Arcade.Group;
+    private lastSonicAt = 0;
+    private gearText!: Phaser.GameObjects.Text;
+    private distance = 0; // how far along the trip we are, in seconds of normal flying
+    private arrived = false;
+    private progressBar!: ProgressBar;
     private starfield!: Starfield;
     private player!: Phaser.Physics.Arcade.Image;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -55,7 +71,19 @@ export class LevelScene extends Scene {
         super('LevelScene');
     }
 
+    // Which level to fly comes from the galaxy map. Retry doesn't pass one, so it
+    // replays the level you were on.
+    init(data: { levelIndex?: number }) {
+        this.state = getGameState(this);
+        this.state.currentLevel = data.levelIndex ?? this.state.currentLevel;
+        this.level = LEVELS[this.state.currentLevel];
+    }
+
     create() {
+        this.playerSpeed = PLAYER_SPEED * (1 + SPEED_UPGRADE_STEP * this.state.upgrades.speed);
+        this.fireDelay = BULLET_FIRE_DELAY * (1 - FIRE_RATE_UPGRADE_STEP * this.state.upgrades.fireRate);
+        this.distance = 0;
+        this.arrived = false;
         this.starfield = new Starfield(this);
 
         this.player = this.physics.add.image(GAME_WIDTH / 2, GAME_HEIGHT - 200, ASSET_KEYS.playerShip);
@@ -67,6 +95,7 @@ export class LevelScene extends Scene {
 
         this.cursors = this.input.keyboard!.createCursorKeys();
         this.jumpKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+        this.sonicKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.X);
 
         this.bullets = this.physics.add.group({ classType: Bullet, maxSize: BULLET_POOL_SIZE, runChildUpdate: true });
         this.enemies = this.physics.add.group({ classType: Enemy, maxSize: ENEMY_POOL_SIZE, runChildUpdate: true });
@@ -75,8 +104,12 @@ export class LevelScene extends Scene {
         this.pickups = this.physics.add.group({ classType: Pickup, maxSize: PICKUP_POOL_SIZE, runChildUpdate: true });
         this.asteroids = this.physics.add.group({ classType: Asteroid, maxSize: ASTEROID_POOL_SIZE, runChildUpdate: true });
         this.storms = this.physics.add.group({ classType: Storm, maxSize: STORM_POOL_SIZE, runChildUpdate: true });
+        this.sonicBlasts = this.physics.add.group({ classType: SonicBlast, maxSize: SONIC_POOL_SIZE, runChildUpdate: true });
         this.lastFiredAt = 0;
-        this.shields = PLAYER_START_SHIELDS;
+        this.lastSonicAt = 0;
+        // Extra lives from the marketplace are used up on this trip.
+        this.shields = startingShields(this.state);
+        this.state.extraLives = 0;
         this.invincibleUntil = 0;
         this.boostUntil = 0;
         this.jumpCharges = HYPERDRIVE_START_CHARGES;
@@ -84,17 +117,21 @@ export class LevelScene extends Scene {
         this.dead = false;
 
         this.time.addEvent({
-            delay: ENEMY_SPAWN_INTERVAL,
+            delay: this.level.enemySpawnInterval,
             loop: true,
-            callback: () => { if (!this.jumping) this.spawnEnemy(); },
+            callback: () => { if (this.canSpawn()) this.spawnEnemy(); },
         });
         this.spawnEvery(COIN_SPAWN_TIME, () => this.spawnPickup('coin'));
         this.spawnEvery(BOLT_SPAWN_TIME, () => this.spawnPickup('bolt'));
-        this.spawnEvery(ASTEROID_SPAWN_TIME, () => this.spawnAsteroid());
-        this.spawnEvery(STORM_SPAWN_TIME, () => this.spawnStorm());
+        this.spawnEvery(this.level.asteroidSpawnTime, () => this.spawnAsteroid());
+        if (this.level.stormSpawnTime) {
+            this.spawnEvery(this.level.stormSpawnTime, () => this.spawnStorm());
+        }
 
         this.physics.add.overlap(this.bullets, this.enemies, (b, e) => this.onBulletHitsEnemy(b as Bullet, e as Enemy));
         this.physics.add.overlap(this.bullets, this.asteroids, (b) => this.onBulletHitsAsteroid(b as Bullet));
+        this.physics.add.overlap(this.sonicBlasts, this.asteroids, (_s, a) => this.smashAsteroid(a as Asteroid));
+        this.physics.add.overlap(this.sonicBlasts, this.enemies, (_s, e) => this.destroyEnemy(e as Enemy));
         this.physics.add.overlap(this.player, this.parts, (_p, part) => this.onCollectPart(part as Part));
         this.physics.add.overlap(this.player, this.pickups, (_p, pickup) => this.onCollectPickup(pickup as Pickup));
         this.physics.add.overlap(this.player, this.enemyBullets, (_p, b) => this.onPlayerHitByBullet(b as EnemyBullet));
@@ -102,12 +139,17 @@ export class LevelScene extends Scene {
         this.physics.add.overlap(this.player, this.asteroids, () => this.onPlayerHitsAsteroid());
         this.physics.add.overlap(this.player, this.storms, (_p, s) => this.onPlayerTouchesStorm(s as Storm));
 
-        makeButton(this, 110, 60, 'Station', () => this.scene.start('StationScene'));
+        this.progressBar = new ProgressBar(this, `Trip to ${this.level.name}`, 20, 60, 400);
 
         this.partsText = this.add.text(20, 110, '', {
             fontFamily: 'Arial', fontSize: 28, color: '#ffffff',
         }).setDepth(10);
         this.updatePartsText();
+
+        this.gearText = this.add.text(20, 148, '', {
+            fontFamily: 'Arial', fontSize: 20, color: '#9fd0ff',
+        }).setDepth(10);
+        this.updateGearText();
 
         this.shieldIcons = [];
         this.updateShieldIcons();
@@ -124,7 +166,15 @@ export class LevelScene extends Scene {
 
         this.starfield.update(dt);
 
-        if (this.dead) return;
+        if (this.dead || this.arrived) return;
+
+        // During a jump the stars race by, and part of that extra speed counts as distance too.
+        this.distance += dt * (1 + (this.starfield.speedMultiplier - 1) * JUMP_DISTANCE_FACTOR);
+        this.progressBar.show(this.distance / this.level.tripLength);
+        if (this.distance >= this.level.tripLength) {
+            this.arrive();
+            return;
+        }
 
         if (Phaser.Input.Keyboard.JustDown(this.jumpKey)) {
             this.tryJump();
@@ -141,7 +191,7 @@ export class LevelScene extends Scene {
         if (!boosted && this.player.isTinted) {
             this.player.clearTint();
         }
-        const speed = boosted ? PLAYER_SPEED * BOOST_SPEED_MULTIPLIER : PLAYER_SPEED;
+        const speed = boosted ? this.playerSpeed * BOOST_SPEED_MULTIPLIER : this.playerSpeed;
 
         if (dx !== 0 || dy !== 0) {
             const length = Math.sqrt(dx * dx + dy * dy);
@@ -152,8 +202,11 @@ export class LevelScene extends Scene {
         this.player.x = Phaser.Math.Clamp(this.player.x, this.shipHalfWidth, GAME_WIDTH - this.shipHalfWidth);
         this.player.y = Phaser.Math.Clamp(this.player.y, this.shipHalfHeight, GAME_HEIGHT - this.shipHalfHeight);
 
-        if (!this.jumping && this.cursors.space.isDown && time - this.lastFiredAt >= BULLET_FIRE_DELAY) {
+        if (!this.jumping && this.cursors.space.isDown && time - this.lastFiredAt >= this.fireDelay) {
             this.fire(time);
+        }
+        if (!this.jumping && this.state.hasSonicCannon && this.sonicKey.isDown && time - this.lastSonicAt >= SONIC_FIRE_DELAY) {
+            this.fireSonic(time);
         }
     }
 
@@ -162,6 +215,19 @@ export class LevelScene extends Scene {
         if (!bullet) return; // pool is full; wait for a bullet to leave the screen
         bullet.fire(this.player.x, this.player.y - this.shipHalfHeight);
         this.lastFiredAt = time;
+    }
+
+    private fireSonic(time: number) {
+        const blast = this.sonicBlasts.get() as SonicBlast | null;
+        if (!blast) return;
+        blast.fire(this.player.x, this.player.y - this.shipHalfHeight);
+        this.lastSonicAt = time;
+    }
+
+    private smashAsteroid(asteroid: Asteroid) {
+        if (!asteroid.active) return;
+        this.explode(asteroid.x, asteroid.y, 0x9a8f84);
+        asteroid.disableBody(true, true);
     }
 
     private spawnEnemy() {
@@ -173,7 +239,7 @@ export class LevelScene extends Scene {
         const margin = SHIP_DISPLAY_SIZE / 2 + (zigzag ? ENEMY_ZIGZAG_AMPLITUDE : 0);
         const x = Phaser.Math.Between(margin, GAME_WIDTH - margin);
         const texture = Math.random() < 0.5 ? ASSET_KEYS.enemyGuard : ASSET_KEYS.enemyBot;
-        const shooter = Math.random() < ENEMY_SHOOTER_CHANCE;
+        const shooter = Math.random() < this.level.enemyShooterChance;
 
         enemy.spawn(x, texture, zigzag ? 'zigzag' : 'straight', shooter, this.enemyBullets, this.time.now);
     }
@@ -195,12 +261,7 @@ export class LevelScene extends Scene {
 
         // No body means no collisions: you pass straight through everything during the jump.
         this.player.disableBody(false, false);
-
-        for (const group of [this.bullets, this.enemies, this.enemyBullets, this.parts, this.pickups, this.asteroids, this.storms]) {
-            for (const obj of group.getMatching('active', true) as Phaser.Physics.Arcade.Image[]) {
-                this.vanish(obj);
-            }
-        }
+        this.clearSpace();
 
         this.tweens.add({
             targets: this.starfield,
@@ -222,7 +283,47 @@ export class LevelScene extends Scene {
 
     private endJump() {
         this.jumping = false;
-        this.player.enableBody(); // collisions are back
+        if (!this.arrived) {
+            this.player.enableBody(); // collisions are back
+        }
+    }
+
+    // You made it! Space clears, your ship flies off the top of the screen, and then
+    // you dock at the star system's station.
+    private arrive() {
+        this.arrived = true;
+        if (!this.state.completed.includes(this.level.name)) {
+            this.state.completed.push(this.level.name);
+        }
+        this.state.location = this.level.name;
+        this.progressBar.show(1);
+        this.player.disableBody(false, false);
+        this.clearSpace();
+
+        this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100, `Arriving at ${this.level.name}!`, {
+            fontFamily: 'Arial Black', fontSize: 44, color: '#ffffff',
+        }).setOrigin(0.5).setDepth(10);
+
+        this.tweens.add({
+            targets: this.player,
+            y: -this.player.displayHeight,
+            duration: ARRIVAL_DELAY * 0.6,
+            ease: 'Cubic.easeIn',
+        });
+        this.time.delayedCall(ARRIVAL_DELAY, () => this.scene.start('StationScene'));
+    }
+
+    private canSpawn() {
+        return !this.jumping && !this.arrived;
+    }
+
+    // Makes every ship, asteroid, coin, storm, part and laser on screen vanish.
+    private clearSpace() {
+        for (const group of [this.bullets, this.sonicBlasts, this.enemies, this.enemyBullets, this.parts, this.pickups, this.asteroids, this.storms]) {
+            for (const obj of group.getMatching('active', true) as Phaser.Physics.Arcade.Image[]) {
+                this.vanish(obj);
+            }
+        }
     }
 
     // Fades an object out and puts it back in its pool. It stops moving and can't
@@ -246,10 +347,10 @@ export class LevelScene extends Scene {
     }
 
     // Calls spawn() over and over, waiting a random time in [min, max] ms in between.
-    // Nothing new appears during a jump.
+    // Nothing new appears during a jump or after you've arrived.
     private spawnEvery([min, max]: [number, number], spawn: () => void) {
         this.time.delayedCall(Phaser.Math.Between(min, max), () => {
-            if (!this.jumping) spawn();
+            if (this.canSpawn()) spawn();
             this.spawnEvery([min, max], spawn);
         });
     }
@@ -284,9 +385,9 @@ export class LevelScene extends Scene {
     // Storms are instant death — unless you have an EM shield, which breaks the storm up and is used up.
     private onPlayerTouchesStorm(storm: Storm) {
         if (this.dead || !storm.body?.enable) return;
-        const emShields = (this.registry.get('emShields') as number | undefined) ?? 0;
-        if (emShields > 0) {
-            this.registry.set('emShields', emShields - 1);
+        if (this.state.emShields > 0) {
+            this.state.emShields -= 1;
+            this.updateGearText();
             storm.dispel();
             return;
         }
@@ -312,8 +413,14 @@ export class LevelScene extends Scene {
 
     private onBulletHitsEnemy(bullet: Bullet, enemy: Enemy) {
         if (!bullet.active || !enemy.active || bullet.bounced) return;
-        const { x, y } = enemy;
         bullet.disableBody(true, true);
+        this.destroyEnemy(enemy);
+    }
+
+    // A bad ship blows up and drops its parts (and sometimes a hyperdrive token).
+    private destroyEnemy(enemy: Enemy) {
+        if (!enemy.active) return;
+        const { x, y } = enemy;
         enemy.disableBody(true, true);
         this.explode(x, y);
         this.dropParts(x, y);
@@ -322,8 +429,8 @@ export class LevelScene extends Scene {
         }
     }
 
-    private explode(x: number, y: number) {
-        const boom = this.add.circle(x, y, 18, 0xffaa33).setDepth(6);
+    private explode(x: number, y: number, color = 0xffaa33) {
+        const boom = this.add.circle(x, y, 18, color).setDepth(6);
         this.tweens.add({
             targets: boom,
             scale: 3,
@@ -345,9 +452,7 @@ export class LevelScene extends Scene {
     private onCollectPart(part: Part) {
         if (!part.active) return;
         part.disableBody(true, true);
-        const inventory = { ...(this.registry.get('parts') as Record<PartType, number>) };
-        inventory[part.partType] += 1;
-        this.registry.set('parts', inventory);
+        this.state.parts[part.partType] += 1;
         this.updatePartsText();
     }
 
@@ -405,8 +510,15 @@ export class LevelScene extends Scene {
     }
 
     private updatePartsText() {
-        const inventory = this.registry.get('parts') as Record<PartType, number>;
-        const total = PART_TYPES.reduce((sum, t) => sum + inventory[t], 0);
+        const total = PART_TYPES.reduce((sum, t) => sum + this.state.parts[t], 0);
         this.partsText.setText(`Parts: ${total}`);
+    }
+
+    // A reminder of the marketplace gear you have on board.
+    private updateGearText() {
+        const gear: string[] = [];
+        if (this.state.hasSonicCannon) gear.push('Sonic cannon: press X');
+        if (this.state.emShields > 0) gear.push(`EM shield x${this.state.emShields}`);
+        this.gearText.setText(gear.join('   '));
     }
 }
