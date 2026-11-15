@@ -1,6 +1,8 @@
-import type * as Phaser from 'phaser';
-import { PART_TYPES, START_CREDITS, PLAYER_START_SHIELDS, PLAYER_MAX_SHIELDS, LEVELS } from '../config';
-import type { PartType } from '../config';
+import * as Phaser from 'phaser';
+import {
+    PART_TYPES, START_CREDITS, PLAYER_START_SHIELDS, PLAYER_MAX_SHIELDS, LEVELS, SHIPS, STARTING_SHIP,
+} from '../config';
+import type { PartType, ShipType } from '../config';
 
 export type UpgradeKind = 'speed' | 'fireRate' | 'shield';
 
@@ -16,6 +18,8 @@ export interface GameState {
     emShields: number;
     extraLives: number; // bought at the marketplace; added to your shields on your next trip
     upgrades: Record<UpgradeKind, number>; // level of each upgrade, 0 = not bought
+    ownedShips: ShipType[]; // ships parked in your garage
+    activeShip: ShipType; // the one you fly on your next trip
 }
 
 export function newGameState(): GameState {
@@ -29,6 +33,8 @@ export function newGameState(): GameState {
         emShields: 0,
         extraLives: 0,
         upgrades: { speed: 0, fireRate: 0, shield: 0 },
+        ownedShips: [STARTING_SHIP],
+        activeShip: STARTING_SHIP,
     };
 }
 
@@ -43,7 +49,8 @@ export function nextLevelIndex(state: GameState) {
     return index === -1 ? LEVELS.length : index;
 }
 
-// How many shields you'll start your next trip with.
+// How many shields you'll start your next trip with: always at least 1, and never more than the maximum.
 export function startingShields(state: GameState) {
-    return Math.min(PLAYER_MAX_SHIELDS, PLAYER_START_SHIELDS + state.upgrades.shield + state.extraLives);
+    const shields = PLAYER_START_SHIELDS + SHIPS[state.activeShip].shields + state.upgrades.shield + state.extraLives;
+    return Phaser.Math.Clamp(shields, 1, PLAYER_MAX_SHIELDS);
 }

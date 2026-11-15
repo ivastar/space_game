@@ -1,12 +1,15 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, LEVELS, PART_TYPES, SHOP_ITEMS, partTextureKey } from '../../config';
-import type { ShopItem } from '../../config';
+import {
+    GAME_WIDTH, GAME_HEIGHT, LEVELS, PART_TYPES, SHOP_ITEMS, SHIPS, SHIP_TYPES, partTextureKey,
+} from '../../config';
+import type { ShopItem, ShipType } from '../../config';
 import { makeButton } from '../ui/makeButton';
 import type { ButtonOptions } from '../ui/makeButton';
 import { getGameState } from '../GameState';
 import type { GameState } from '../GameState';
 import { Marketplace } from '../Marketplace';
+import { Garage } from '../Garage';
 
 type Tab = 'market' | 'garage';
 
@@ -23,10 +26,12 @@ const GOLD = '#ffd94f';
 const TAB_SELECTED_COLOR = 0x3f9e5f;
 
 // The space station at a star system. The marketplace tab is where you sell parts for
-// credits and buy gear and upgrades. (The garage tab comes in Phase 12.)
+// credits and buy gear and upgrades. The garage tab is where you build new ships
+// from parts and choose which one to fly.
 export class StationScene extends Scene {
     private state!: GameState;
     private market!: Marketplace;
+    private garage!: Garage;
     private tab: Tab = 'market';
     // Everything on the current tab. It's thrown away and drawn again after every
     // purchase, so the numbers and buttons are always up to date.
@@ -40,6 +45,7 @@ export class StationScene extends Scene {
         this.state = getGameState(this);
         const stationName = LEVELS[this.state.currentLevel].name;
         this.market = new Marketplace(this.state, stationName);
+        this.garage = new Garage(this.state);
         this.tab = 'market';
 
         this.add.text(GAME_WIDTH / 2, 60, `${stationName} Station`, {
@@ -64,9 +70,70 @@ export class StationScene extends Scene {
         if (this.tab === 'market') {
             this.drawMarketplace();
         } else {
-            this.addText(GAME_WIDTH / 2, 400, 'Building ships and the garage\nare coming in Phase 12.', 26, '#cccccc')
-                .setOrigin(0.5).setAlign('center');
+            this.drawGarage();
         }
+    }
+
+    private drawGarage() {
+        // Your parts, so you can see what you can build.
+        PART_TYPES.forEach((part, i) => {
+            const x = 80 + i * 160;
+            this.content.add(this.add.image(x, 200, partTextureKey(part)).setScale(1.2));
+            this.addText(x + 20, 200, `x${this.state.parts[part]}`, 24).setOrigin(0, 0.5);
+        });
+
+        SHIP_TYPES.forEach((ship, i) => this.drawShipCard(ship, 250 + i * 205));
+    }
+
+    // One ship in the garage: its picture, stats, recipe, and a Build / Fly button.
+    private drawShipCard(ship: ShipType, top: number) {
+        const settings = SHIPS[ship];
+        const flying = this.garage.isFlying(ship);
+
+        this.content.add(this.add.rectangle(GAME_WIDTH / 2, top + 92, 680, 190, 0x141a2a)
+            .setStrokeStyle(flying ? 4 : 2, flying ? 0x4fff8a : 0x2e3a55));
+
+        const picture = this.add.image(95, top + 80, settings.sprite).setTint(settings.tint);
+        picture.setDisplaySize(settings.displayWidth, settings.displayWidth * (picture.height / picture.width));
+        this.content.add(picture);
+
+        this.addText(175, top + 28, settings.name, 26, '#ffffff', 'Arial Black').setOrigin(0, 0.5);
+        this.addText(175, top + 62, settings.description, 18, '#aab3c5').setOrigin(0, 0.5);
+        const lasers = Math.round(100 / settings.fireDelay);
+        const shields = settings.shields >= 0 ? `+${settings.shields}` : `${settings.shields}`;
+        this.addText(175, top + 94, `Speed ${Math.round(settings.speed * 100)}%   Lasers ${lasers}%   Shields ${shields}`, 18, '#9fd0ff')
+            .setOrigin(0, 0.5);
+
+        // The recipe: each part it needs, green if you have enough, red if not.
+        const y = top + 145;
+        if (this.garage.owns(ship)) {
+            this.addText(175, y, 'In your garage', 20, '#c8ffd9').setOrigin(0, 0.5);
+        } else {
+            this.garage.recipe(ship).forEach(({ part, need, have }, j) => {
+                const x = 190 + j * 95;
+                this.content.add(this.add.image(x, y, partTextureKey(part)));
+                this.addText(x + 18, y, `${have}/${need}`, 20, have >= need ? '#4fff8a' : '#ff6b6b').setOrigin(0, 0.5);
+            });
+        }
+
+        if (flying) {
+            this.addText(610, y, 'Flying', 24, '#4fff8a', 'Arial Black').setOrigin(0.5);
+        } else if (this.garage.owns(ship)) {
+            this.addButton(610, y, 'Fly this', () => this.flyShip(ship), { width: 150, height: 50, fontSize: 22 });
+        } else {
+            this.addButton(610, y, 'Build', () => this.buildShip(ship),
+                { width: 150, height: 50, fontSize: 22, enabled: this.garage.canBuild(ship) });
+        }
+    }
+
+    private buildShip(ship: ShipType) {
+        this.garage.build(ship);
+        this.redraw();
+    }
+
+    private flyShip(ship: ShipType) {
+        this.garage.fly(ship);
+        this.redraw();
     }
 
     private showTab(tab: Tab) {

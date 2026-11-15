@@ -1,6 +1,6 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
-import { ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, LEVELS, MAP_FLY_DURATION, GALAXY_STAR_COUNT } from '../../config';
+import { GAME_WIDTH, GAME_HEIGHT, LEVELS, MAP_FLY_DURATION, GALAXY_STAR_COUNT, SHIPS } from '../../config';
 import { makeButton } from '../ui/makeButton';
 import { getGameState, nextLevelIndex } from '../GameState';
 
@@ -102,7 +102,8 @@ export class GalaxyMapScene extends Scene {
 
         const locationIndex = LEVELS.findIndex(level => level.name === state.location);
         const here = locationIndex === -1 ? start : positions[locationIndex];
-        this.ship = this.add.image(here.x, here.y - SHIP_ABOVE_DOT, ASSET_KEYS.playerShip).setDepth(5);
+        const ship = SHIPS[state.activeShip];
+        this.ship = this.add.image(here.x, here.y - SHIP_ABOVE_DOT, ship.sprite).setDepth(5).setTint(ship.tint);
         this.ship.setDisplaySize(SHIP_WIDTH, SHIP_WIDTH * (this.ship.height / this.ship.width));
         this.tweens.add({ targets: this.ship, y: this.ship.y - 5, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 

@@ -15,10 +15,10 @@ import {
     JUMP_SPEED_MULTIPLIER, JUMP_OBJECTS_FADE,
     LEVELS, JUMP_DISTANCE_FACTOR, ARRIVAL_DELAY,
     SPEED_UPGRADE_STEP, FIRE_RATE_UPGRADE_STEP, SONIC_FIRE_DELAY, SONIC_POOL_SIZE,
-    NEW_THING_ORDER, NEW_THING_NAMES, NEW_THING_BANNER_TIME, BOT_SHIP_CHANCE, BOT_SHIP_HEALTH, isIntroduced,
+    SHIPS, NEW_THING_ORDER, NEW_THING_NAMES, NEW_THING_BANNER_TIME, BOT_SHIP_CHANCE, BOT_SHIP_HEALTH, isIntroduced,
 } from '../../config';
 import { Starfield } from '../objects/Starfield';
-import type { LevelSettings, NewThing } from '../../config';
+import type { LevelSettings, NewThing, ShipSettings } from '../../config';
 import { getGameState, startingShields } from '../GameState';
 import type { GameState } from '../GameState';
 import { SonicBlast } from '../objects/SonicBlast';
@@ -56,6 +56,8 @@ export class LevelScene extends Scene {
     private storms!: Phaser.Physics.Arcade.Group;
     private partsText!: Phaser.GameObjects.Text;
     private boostUntil = 0;
+    private boosting = false;
+    private ship!: ShipSettings;
     private jumpKey!: Phaser.Input.Keyboard.Key;
     private jumpCharges = 0;
     private jumpTokens = 0; // tokens collected towards the next jump
@@ -83,15 +85,18 @@ export class LevelScene extends Scene {
     }
 
     create() {
-        this.playerSpeed = PLAYER_SPEED * (1 + SPEED_UPGRADE_STEP * this.state.upgrades.speed);
-        this.fireDelay = BULLET_FIRE_DELAY * (1 - FIRE_RATE_UPGRADE_STEP * this.state.upgrades.fireRate);
+        // Your ship's own stats, then marketplace upgrades on top.
+        this.ship = SHIPS[this.state.activeShip];
+        this.playerSpeed = PLAYER_SPEED * this.ship.speed * (1 + SPEED_UPGRADE_STEP * this.state.upgrades.speed);
+        this.fireDelay = BULLET_FIRE_DELAY * this.ship.fireDelay * (1 - FIRE_RATE_UPGRADE_STEP * this.state.upgrades.fireRate);
         this.distance = 0;
         this.arrived = false;
+        this.boosting = false;
         this.starfield = new Starfield(this);
 
-        this.player = this.physics.add.image(GAME_WIDTH / 2, GAME_HEIGHT - 200, ASSET_KEYS.playerShip);
-        const scale = SHIP_DISPLAY_SIZE / this.player.width;
-        this.player.setDisplaySize(SHIP_DISPLAY_SIZE, this.player.height * scale);
+        this.player = this.physics.add.image(GAME_WIDTH / 2, GAME_HEIGHT - 200, this.ship.sprite);
+        this.player.setDisplaySize(this.ship.displayWidth, this.ship.displayWidth * (this.player.height / this.player.width));
+        this.player.setTint(this.ship.tint);
         this.player.setDepth(5);
         this.shipHalfWidth = this.player.displayWidth / 2;
         this.shipHalfHeight = this.player.displayHeight / 2;
@@ -218,8 +223,9 @@ export class LevelScene extends Scene {
         if (this.cursors.down.isDown) dy += 1;
 
         const boosted = time < this.boostUntil;
-        if (!boosted && this.player.isTinted) {
-            this.player.clearTint();
+        if (this.boosting && !boosted) {
+            this.boosting = false;
+            this.player.setTint(this.ship.tint); // back to the ship's own colour
         }
         const speed = boosted ? this.playerSpeed * BOOST_SPEED_MULTIPLIER : this.playerSpeed;
 
@@ -444,6 +450,7 @@ export class LevelScene extends Scene {
             }
         } else if (pickup.kind === 'bolt') {
             this.boostUntil = this.time.now + BOOST_DURATION;
+            this.boosting = true;
             this.player.setTint(BOOST_TINT);
         } else {
             this.jumpTokens += 1;
@@ -494,7 +501,7 @@ export class LevelScene extends Scene {
     private onCollectPart(part: Part) {
         if (!part.active) return;
         part.disableBody(true, true);
-        this.state.parts[part.partType] += 1;
+        this.state.parts[part.partType] += this.ship.partsPerPickup;
         this.updatePartsText();
     }
 

@@ -229,3 +229,54 @@ export const SONIC_SPEED = 650; // px/sec, upwards
 export const SONIC_FIRE_DELAY = 700; // ms between blasts
 export const SONIC_WIDTH = 90; // px on screen
 export const SONIC_POOL_SIZE = 6;
+
+// Phase 12: building ships and the garage
+export const SHIP_TYPES = ['guard', 'scout', 'fighter', 'freighter'] as const;
+export type ShipType = typeof SHIP_TYPES[number];
+
+export interface ShipSettings {
+    name: string;
+    description: string;
+    // Sasha has only drawn the Guard so far, so the others reuse it with a different
+    // colour and size. When she draws one, load it in BootScene and put its key here.
+    sprite: string;
+    tint: number; // 0xffffff = the picture's own colours
+    displayWidth: number; // px on screen
+    recipe: Partial<Record<PartType, number>>; // parts needed to build it (the Guard is free)
+    speed: number; // multiplies the ship's speed (1.3 = 30% faster)
+    fireDelay: number; // multiplies the time between laser shots (0.6 = shoots much faster)
+    shields: number; // extra shields at the start of every trip (can be negative)
+    partsPerPickup: number; // how many parts you get for each one you fly over
+}
+
+export const SHIPS: Record<ShipType, ShipSettings> = {
+    guard: {
+        name: 'Guard',
+        description: 'Your first ship. Good at everything.',
+        sprite: 'shasha_guard', tint: 0xffffff, displayWidth: 80,
+        recipe: {},
+        speed: 1, fireDelay: 1, shields: 0, partsPerPickup: 1,
+    },
+    scout: {
+        name: 'Scout',
+        description: 'Small and very fast, but fragile.',
+        sprite: 'shasha_guard', tint: 0x9fffb0, displayWidth: 64,
+        recipe: { engine: 2, wing: 2, cockpit: 1 },
+        speed: 1.35, fireDelay: 1, shields: -1, partsPerPickup: 1,
+    },
+    fighter: {
+        name: 'Fighter',
+        description: 'Shoots lasers much faster.',
+        sprite: 'shasha_guard', tint: 0xff9a9a, displayWidth: 84,
+        recipe: { cannon: 3, engine: 1, wing: 1, cockpit: 1 },
+        speed: 1.05, fireDelay: 0.6, shields: 0, partsPerPickup: 1,
+    },
+    freighter: {
+        name: 'Freighter',
+        description: 'Slow and tough. Collects double parts.',
+        sprite: 'shasha_guard', tint: 0xffd27a, displayWidth: 100,
+        recipe: { engine: 3, wing: 2, cockpit: 2, cannon: 1 },
+        speed: 0.8, fireDelay: 1.2, shields: 2, partsPerPickup: 2,
+    },
+};
+export const STARTING_SHIP: ShipType = 'guard';
