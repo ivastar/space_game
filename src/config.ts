@@ -63,8 +63,6 @@ export const PART_COLORS: Record<PartType, number> = {
     cannon: 0xb0b0b0,
 };
 export const PART_SIZE = 22; // px
-export const PARTS_DROP_MIN = 1;
-export const PARTS_DROP_MAX = 3;
 export const PART_FALL_SPEED = 80; // px/sec
 export const PART_POOL_SIZE = 40;
 
@@ -97,7 +95,8 @@ export const STORM_SIZE = 260; // px on screen
 export const STORM_POOL_SIZE = 3;
 
 // Phase 7: hyperdrive jump
-export const HYPERDRIVE_DROP_CHANCE = 0.2; // 0..1, chance a destroyed bad ship drops a hyperdrive token
+export const HYPERDRIVE_DROP_CHANCE = 0.3; // 0..1, chance a destroyed bad ship drops a hyperdrive token
+export const HYPERDRIVE_TOKENS_PER_JUMP = 3; // collect this many tokens to earn one jump
 export const HYPERDRIVE_START_CHARGES = 0; // jump charges you start each level with
 export const JUMP_RAMP_UP = 900; // ms speeding up: starts slow, then faster and faster
 export const JUMP_CRUISE = 1200; // ms at full jump speed
@@ -114,82 +113,83 @@ export const JUMP_OBJECTS_FADE = 250; // ms for ships, asteroids, coins etc. to 
 export const JUMP_DISTANCE_FACTOR = 0.15;
 export const ARRIVAL_DELAY = 2500; // ms of "Arriving at..." before the station screen
 
+// The things that can appear in a level. Each level brings in at most one new thing:
+// NEW_THING_ORDER[0] is new in level 1 (Alpha), NEW_THING_ORDER[1] in level 2 (Beta),
+// and so on. Once something has been introduced it keeps appearing in every later level.
+export const NEW_THING_ORDER = [
+    'basicShips', // Alpha
+    'asteroids', // Beta
+    'coins', // Gamma
+    'lightning', // Delta
+    'zigzagShips', // Epsilon
+    'hyperdriveTokens', // Zeta
+    'storms', // Eta
+    'shooterShips', // Theta
+    'botShips', // Iota — from Kappa on, nothing new: levels just get harder
+] as const;
+export type NewThing = typeof NEW_THING_ORDER[number];
+
+// Has this thing been introduced by this level (counting from 0 = Alpha)?
+export const isIntroduced = (thing: NewThing, levelIndex: number) => NEW_THING_ORDER.indexOf(thing) <= levelIndex;
+
+// The banner shown at the start of the level where something is new.
+export const NEW_THING_NAMES: Record<NewThing, string> = {
+    basicShips: 'Bad ships! Shoot them with Space.',
+    asteroids: 'Asteroids! Your lasers bounce off — dodge them.',
+    coins: 'Coins! Grab them for an extra shield.',
+    lightning: 'Lightning bolts! They make you fast for a while.',
+    zigzagShips: 'Zig-zag ships! Harder to hit.',
+    hyperdriveTokens: 'Hyperdrive tokens! Collect 3 to earn a jump (Shift).',
+    storms: 'EM storms! Touching one is deadly.',
+    shooterShips: 'Watch out: these ships shoot back!',
+    botShips: 'Bot ships! They take two hits.',
+};
+export const NEW_THING_BANNER_TIME = 3500; // ms the "new thing" banner stays up
+
+export const BOT_SHIP_CHANCE = 0.3; // 0..1, chance a new enemy is a bot ship (once bot ships are introduced)
+export const BOT_SHIP_HEALTH = 2; // laser hits a bot ship can take
+
 export interface LevelSettings {
     name: string; // the star system you're flying to
-    mapX: number; // where its dot is on the galaxy map
-    mapY: number;
     tripLength: number; // seconds of normal flying
     enemySpawnInterval: number; // ms between new bad ships (smaller = more enemies)
-    enemyShooterChance: number; // 0..1, chance a new enemy shoots back
-    asteroidSpawnTime: [number, number]; // [min, max] ms between asteroids
-    stormSpawnTime: [number, number] | null; // [min, max] ms between storms, or null for no storms
+    enemyShooterChance: number; // 0..1, chance a new enemy shoots back (once shooter ships are introduced)
+    asteroidSpawnTime: [number, number]; // [min, max] ms between asteroids (once introduced)
+    stormSpawnTime: [number, number]; // [min, max] ms between storms (once introduced)
 }
 
+// 24 levels, one for each letter of the Greek alphabet. They unlock in order:
+// finishing a level opens the next one. Each gets a bit longer and busier than the last.
 export const LEVELS: LevelSettings[] = [
-    {
-        name: 'Alpha',
-        mapX: 360, mapY: 860,
-        tripLength: 45,
-        enemySpawnInterval: 1500,
-        enemyShooterChance: 0.15,
-        asteroidSpawnTime: [4000, 7000],
-        stormSpawnTime: null,
-    },
-    {
-        name: 'Beta',
-        mapX: 170, mapY: 660,
-        tripLength: 60,
-        enemySpawnInterval: 1200,
-        enemyShooterChance: 0.25,
-        asteroidSpawnTime: [2500, 4500],
-        stormSpawnTime: [16000, 24000],
-    },
-    {
-        name: 'Gamma',
-        mapX: 550, mapY: 620,
-        tripLength: 75,
-        enemySpawnInterval: 900,
-        enemyShooterChance: 0.35,
-        asteroidSpawnTime: [1800, 3200],
-        stormSpawnTime: [12000, 18000],
-    },
-    {
-        name: 'Delta',
-        mapX: 280, mapY: 430,
-        tripLength: 90,
-        enemySpawnInterval: 800,
-        enemyShooterChance: 0.4,
-        asteroidSpawnTime: [1500, 2800],
-        stormSpawnTime: [10000, 15000],
-    },
-    {
-        name: 'Epsilon',
-        mapX: 460, mapY: 260,
-        tripLength: 100,
-        enemySpawnInterval: 700,
-        enemyShooterChance: 0.5,
-        asteroidSpawnTime: [1200, 2400],
-        stormSpawnTime: [8000, 13000],
-    },
+    { name: 'Alpha',    tripLength:  25, enemySpawnInterval: 3000, enemyShooterChance: 0,    asteroidSpawnTime: [6000, 10800], stormSpawnTime: [22000, 33000] },
+    { name: 'Beta',     tripLength:  27, enemySpawnInterval: 2850, enemyShooterChance: 0,    asteroidSpawnTime: [5700, 10300], stormSpawnTime: [21500, 32000] },
+    { name: 'Gamma',    tripLength:  29, enemySpawnInterval: 2700, enemyShooterChance: 0,    asteroidSpawnTime: [5500,  9900], stormSpawnTime: [20500, 31000] },
+    { name: 'Delta',    tripLength:  32, enemySpawnInterval: 2600, enemyShooterChance: 0,    asteroidSpawnTime: [5200,  9400], stormSpawnTime: [20000, 30000] },
+    { name: 'Epsilon',  tripLength:  35, enemySpawnInterval: 2450, enemyShooterChance: 0,    asteroidSpawnTime: [5000,  9000], stormSpawnTime: [19500, 29000] },
+    { name: 'Zeta',     tripLength:  38, enemySpawnInterval: 2350, enemyShooterChance: 0,    asteroidSpawnTime: [4800,  8600], stormSpawnTime: [18500, 28000] },
+    { name: 'Eta',      tripLength:  42, enemySpawnInterval: 2250, enemyShooterChance: 0,    asteroidSpawnTime: [4600,  8300], stormSpawnTime: [18000, 27000] },
+    { name: 'Theta',    tripLength:  45, enemySpawnInterval: 2150, enemyShooterChance: 0.1,  asteroidSpawnTime: [4400,  7900], stormSpawnTime: [17500, 26000] },
+    { name: 'Iota',     tripLength:  49, enemySpawnInterval: 2050, enemyShooterChance: 0.12, asteroidSpawnTime: [4100,  7400], stormSpawnTime: [17000, 25500] },
+    { name: 'Kappa',    tripLength:  53, enemySpawnInterval: 1950, enemyShooterChance: 0.15, asteroidSpawnTime: [3900,  7000], stormSpawnTime: [16000, 24000] },
+    { name: 'Lambda',   tripLength:  57, enemySpawnInterval: 1850, enemyShooterChance: 0.18, asteroidSpawnTime: [3700,  6700], stormSpawnTime: [15500, 23000] },
+    { name: 'Mu',       tripLength:  61, enemySpawnInterval: 1750, enemyShooterChance: 0.2,  asteroidSpawnTime: [3500,  6300], stormSpawnTime: [15000, 22500] },
+    { name: 'Nu',       tripLength:  66, enemySpawnInterval: 1650, enemyShooterChance: 0.23, asteroidSpawnTime: [3300,  5900], stormSpawnTime: [14000, 21000] },
+    { name: 'Xi',       tripLength:  70, enemySpawnInterval: 1550, enemyShooterChance: 0.25, asteroidSpawnTime: [3100,  5600], stormSpawnTime: [13500, 20000] },
+    { name: 'Omicron',  tripLength:  75, enemySpawnInterval: 1450, enemyShooterChance: 0.28, asteroidSpawnTime: [2900,  5200], stormSpawnTime: [13000, 19500] },
+    { name: 'Pi',       tripLength:  79, enemySpawnInterval: 1350, enemyShooterChance: 0.3,  asteroidSpawnTime: [2700,  4900], stormSpawnTime: [12000, 18000] },
+    { name: 'Rho',      tripLength:  84, enemySpawnInterval: 1250, enemyShooterChance: 0.33, asteroidSpawnTime: [2500,  4500], stormSpawnTime: [11500, 17000] },
+    { name: 'Sigma',    tripLength:  89, enemySpawnInterval: 1200, enemyShooterChance: 0.35, asteroidSpawnTime: [2300,  4100], stormSpawnTime: [11000, 16500] },
+    { name: 'Tau',      tripLength:  94, enemySpawnInterval: 1100, enemyShooterChance: 0.38, asteroidSpawnTime: [2200,  4000], stormSpawnTime: [10500, 16000] },
+    { name: 'Upsilon',  tripLength:  99, enemySpawnInterval: 1000, enemyShooterChance: 0.4,  asteroidSpawnTime: [2000,  3600], stormSpawnTime: [ 9500, 14000] },
+    { name: 'Phi',      tripLength: 104, enemySpawnInterval:  900, enemyShooterChance: 0.43, asteroidSpawnTime: [1800,  3200], stormSpawnTime: [ 9000, 13500] },
+    { name: 'Chi',      tripLength: 109, enemySpawnInterval:  800, enemyShooterChance: 0.45, asteroidSpawnTime: [1600,  2900], stormSpawnTime: [ 8500, 13000] },
+    { name: 'Psi',      tripLength: 115, enemySpawnInterval:  750, enemyShooterChance: 0.47, asteroidSpawnTime: [1400,  2500], stormSpawnTime: [ 7500, 11000] },
+    { name: 'Omega',    tripLength: 120, enemySpawnInterval:  650, enemyShooterChance: 0.5,  asteroidSpawnTime: [1200,  2200], stormSpawnTime: [ 7000, 10500] },
 ];
 
 // Phase 10: galaxy map
-// Where you start. It's a star system on the map, but there's no level to fly there.
-export const HOME_SYSTEM = { name: 'Home', mapX: 360, mapY: 1060 };
-
-// Routes between star systems, by name. Finishing a level unlocks every system
-// that has a route to it.
-export const ROUTES: [string, string][] = [
-    ['Home', 'Alpha'],
-    ['Alpha', 'Beta'],
-    ['Alpha', 'Gamma'],
-    ['Beta', 'Delta'],
-    ['Gamma', 'Delta'],
-    ['Delta', 'Epsilon'],
-];
-
-export const MAP_STAR_DRIFT = 0.3; // background stars on the map drift at this fraction of normal speed
 export const MAP_FLY_DURATION = 900; // ms for your ship to fly across the map before a level starts
+export const GALAXY_STAR_COUNT = 2600; // decorative stars in the spiral galaxy
 
 // Phase 11: dark marketplace
 export const START_CREDITS = 0;

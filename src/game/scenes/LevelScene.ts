@@ -6,18 +6,19 @@ import {
     BULLET_FIRE_DELAY, BULLET_POOL_SIZE,
     ENEMY_POOL_SIZE, ENEMY_BULLET_POOL_SIZE,
     ENEMY_ZIGZAG_CHANCE, ENEMY_ZIGZAG_AMPLITUDE,
-    PART_TYPES, PARTS_DROP_MIN, PARTS_DROP_MAX, PART_POOL_SIZE,
+    PART_TYPES, PART_POOL_SIZE,
     PLAYER_INVINCIBLE_DURATION, PLAYER_FLASH_INTERVAL, GAME_OVER_DELAY,
     COIN_SPAWN_TIME, BOLT_SPAWN_TIME,
     PLAYER_MAX_SHIELDS, PICKUP_POOL_SIZE, BOOST_DURATION, BOOST_SPEED_MULTIPLIER, BOOST_TINT,
     ASTEROID_POOL_SIZE, ASTEROID_SIZE, STORM_POOL_SIZE, STORM_SIZE,
-    HYPERDRIVE_DROP_CHANCE, HYPERDRIVE_START_CHARGES, JUMP_RAMP_UP, JUMP_CRUISE, JUMP_RAMP_DOWN,
+    HYPERDRIVE_DROP_CHANCE, HYPERDRIVE_START_CHARGES, HYPERDRIVE_TOKENS_PER_JUMP, JUMP_RAMP_UP, JUMP_CRUISE, JUMP_RAMP_DOWN,
     JUMP_SPEED_MULTIPLIER, JUMP_OBJECTS_FADE,
     LEVELS, JUMP_DISTANCE_FACTOR, ARRIVAL_DELAY,
     SPEED_UPGRADE_STEP, FIRE_RATE_UPGRADE_STEP, SONIC_FIRE_DELAY, SONIC_POOL_SIZE,
+    NEW_THING_ORDER, NEW_THING_NAMES, NEW_THING_BANNER_TIME, BOT_SHIP_CHANCE, BOT_SHIP_HEALTH, isIntroduced,
 } from '../../config';
 import { Starfield } from '../objects/Starfield';
-import type { LevelSettings } from '../../config';
+import type { LevelSettings, NewThing } from '../../config';
 import { getGameState, startingShields } from '../GameState';
 import type { GameState } from '../GameState';
 import { SonicBlast } from '../objects/SonicBlast';
@@ -57,6 +58,8 @@ export class LevelScene extends Scene {
     private boostUntil = 0;
     private jumpKey!: Phaser.Input.Keyboard.Key;
     private jumpCharges = 0;
+    private jumpTokens = 0; // tokens collected towards the next jump
+    private tokenIcon!: Phaser.GameObjects.Image;
     private jumping = false;
     private chargesText!: Phaser.GameObjects.Text;
     private shieldIcons: Phaser.GameObjects.Image[] = [];
@@ -113,6 +116,7 @@ export class LevelScene extends Scene {
         this.invincibleUntil = 0;
         this.boostUntil = 0;
         this.jumpCharges = HYPERDRIVE_START_CHARGES;
+        this.jumpTokens = 0;
         this.jumping = false;
         this.dead = false;
 
@@ -121,12 +125,11 @@ export class LevelScene extends Scene {
             loop: true,
             callback: () => { if (this.canSpawn()) this.spawnEnemy(); },
         });
-        this.spawnEvery(COIN_SPAWN_TIME, () => this.spawnPickup('coin'));
-        this.spawnEvery(BOLT_SPAWN_TIME, () => this.spawnPickup('bolt'));
-        this.spawnEvery(this.level.asteroidSpawnTime, () => this.spawnAsteroid());
-        if (this.level.stormSpawnTime) {
-            this.spawnEvery(this.level.stormSpawnTime, () => this.spawnStorm());
-        }
+        // Only things that have been introduced by this level appear (see NEW_THING_ORDER).
+        if (this.has('coins')) this.spawnEvery(COIN_SPAWN_TIME, () => this.spawnPickup('coin'));
+        if (this.has('lightning')) this.spawnEvery(BOLT_SPAWN_TIME, () => this.spawnPickup('bolt'));
+        if (this.has('asteroids')) this.spawnEvery(this.level.asteroidSpawnTime, () => this.spawnAsteroid());
+        if (this.has('storms')) this.spawnEvery(this.level.stormSpawnTime, () => this.spawnStorm());
 
         this.physics.add.overlap(this.bullets, this.enemies, (b, e) => this.onBulletHitsEnemy(b as Bullet, e as Enemy));
         this.physics.add.overlap(this.bullets, this.asteroids, (b) => this.onBulletHitsAsteroid(b as Bullet));
@@ -154,11 +157,38 @@ export class LevelScene extends Scene {
         this.shieldIcons = [];
         this.updateShieldIcons();
 
-        this.add.image(GAME_WIDTH - 95, 110, ASSET_KEYS.hyperdriveToken).setDepth(10);
-        this.chargesText = this.add.text(GAME_WIDTH - 72, 110, '', {
-            fontFamily: 'Arial', fontSize: 28, color: '#ffffff',
-        }).setOrigin(0, 0.5).setDepth(10);
+        this.tokenIcon = this.add.image(0, 110, ASSET_KEYS.hyperdriveToken).setDepth(10);
+        this.chargesText = this.add.text(GAME_WIDTH - 20, 110, '', {
+            fontFamily: 'Arial', fontSize: 26, color: '#ffffff',
+        }).setOrigin(1, 0.5).setDepth(10);
         this.updateChargesText();
+        // Tokens and jumps only matter once hyperdrive tokens have been introduced.
+        this.tokenIcon.setVisible(this.has('hyperdriveTokens'));
+        this.chargesText.setVisible(this.has('hyperdriveTokens'));
+
+        this.showNewThingBanner();
+    }
+
+    // Has this thing been introduced by this level?
+    private has(thing: NewThing) {
+        return isIntroduced(thing, this.state.currentLevel);
+    }
+
+    // If this level brings in something new, say so for a few seconds at the start.
+    private showNewThingBanner() {
+        const thing = NEW_THING_ORDER[this.state.currentLevel];
+        if (!thing) return;
+        const banner = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 150, `NEW!\n${NEW_THING_NAMES[thing]}`, {
+            fontFamily: 'Arial Black', fontSize: 32, color: '#ffe14f', align: 'center',
+            stroke: '#000000', strokeThickness: 6, wordWrap: { width: GAME_WIDTH - 80 },
+        }).setOrigin(0.5).setDepth(10);
+        this.tweens.add({
+            targets: banner,
+            alpha: 0,
+            delay: NEW_THING_BANNER_TIME - 500,
+            duration: 500,
+            onComplete: () => banner.destroy(),
+        });
     }
 
     update(time: number, delta: number) {
@@ -234,14 +264,22 @@ export class LevelScene extends Scene {
         const enemy = this.enemies.get() as Enemy | null;
         if (!enemy) return;
 
-        const zigzag = Math.random() < ENEMY_ZIGZAG_CHANCE;
+        const zigzag = this.has('zigzagShips') && Math.random() < ENEMY_ZIGZAG_CHANCE;
+        const shooter = this.has('shooterShips') && Math.random() < this.level.enemyShooterChance;
+        const bot = this.has('botShips') && Math.random() < BOT_SHIP_CHANCE;
         // Keep zig-zaggers far enough from the edges that their swing stays on screen.
         const margin = SHIP_DISPLAY_SIZE / 2 + (zigzag ? ENEMY_ZIGZAG_AMPLITUDE : 0);
         const x = Phaser.Math.Between(margin, GAME_WIDTH - margin);
-        const texture = Math.random() < 0.5 ? ASSET_KEYS.enemyGuard : ASSET_KEYS.enemyBot;
-        const shooter = Math.random() < this.level.enemyShooterChance;
 
-        enemy.spawn(x, texture, zigzag ? 'zigzag' : 'straight', shooter, this.enemyBullets, this.time.now);
+        enemy.spawn(
+            x,
+            bot ? ASSET_KEYS.enemyBot : ASSET_KEYS.enemyGuard,
+            zigzag ? 'zigzag' : 'straight',
+            shooter,
+            bot ? BOT_SHIP_HEALTH : 1,
+            this.enemyBullets,
+            this.time.now,
+        );
     }
 
     // Uses one hyperdrive charge to jump, Star Wars style: everything else vanishes, the stars
@@ -342,8 +380,10 @@ export class LevelScene extends Scene {
         });
     }
 
+    // e.g. "2/3   Jumps: 1" — tokens towards the next jump, and jumps you can use now.
     private updateChargesText() {
-        this.chargesText.setText(`x ${this.jumpCharges}`);
+        this.chargesText.setText(`${this.jumpTokens}/${HYPERDRIVE_TOKENS_PER_JUMP}   Jumps: ${this.jumpCharges}`);
+        this.tokenIcon.setX(this.chargesText.x - this.chargesText.width - 22);
     }
 
     // Calls spawn() over and over, waiting a random time in [min, max] ms in between.
@@ -406,7 +446,11 @@ export class LevelScene extends Scene {
             this.boostUntil = this.time.now + BOOST_DURATION;
             this.player.setTint(BOOST_TINT);
         } else {
-            this.jumpCharges += 1;
+            this.jumpTokens += 1;
+            if (this.jumpTokens >= HYPERDRIVE_TOKENS_PER_JUMP) {
+                this.jumpTokens = 0;
+                this.jumpCharges += 1;
+            }
             this.updateChargesText();
         }
     }
@@ -414,17 +458,19 @@ export class LevelScene extends Scene {
     private onBulletHitsEnemy(bullet: Bullet, enemy: Enemy) {
         if (!bullet.active || !enemy.active || bullet.bounced) return;
         bullet.disableBody(true, true);
-        this.destroyEnemy(enemy);
+        if (enemy.takeHit()) {
+            this.destroyEnemy(enemy);
+        }
     }
 
-    // A bad ship blows up and drops its parts (and sometimes a hyperdrive token).
+    // A bad ship blows up and drops one part (and sometimes a hyperdrive token).
     private destroyEnemy(enemy: Enemy) {
         if (!enemy.active) return;
         const { x, y } = enemy;
         enemy.disableBody(true, true);
         this.explode(x, y);
-        this.dropParts(x, y);
-        if (Math.random() < HYPERDRIVE_DROP_CHANCE) {
+        this.dropPart(x, y);
+        if (this.has('hyperdriveTokens') && Math.random() < HYPERDRIVE_DROP_CHANCE) {
             this.spawnPickup('hyperdrive', x, y);
         }
     }
@@ -440,13 +486,9 @@ export class LevelScene extends Scene {
         });
     }
 
-    private dropParts(x: number, y: number) {
-        const count = Phaser.Math.Between(PARTS_DROP_MIN, PARTS_DROP_MAX);
-        for (let i = 0; i < count; i++) {
-            const part = this.parts.get() as Part | null;
-            if (!part) return;
-            part.drop(x, y, Phaser.Utils.Array.GetRandom([...PART_TYPES]));
-        }
+    private dropPart(x: number, y: number) {
+        const part = this.parts.get() as Part | null;
+        part?.drop(x, y, Phaser.Utils.Array.GetRandom([...PART_TYPES]));
     }
 
     private onCollectPart(part: Part) {

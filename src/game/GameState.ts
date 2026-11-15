@@ -1,5 +1,5 @@
 import type * as Phaser from 'phaser';
-import { PART_TYPES, HOME_SYSTEM, START_CREDITS, PLAYER_START_SHIELDS, PLAYER_MAX_SHIELDS } from '../config';
+import { PART_TYPES, START_CREDITS, PLAYER_START_SHIELDS, PLAYER_MAX_SHIELDS, LEVELS } from '../config';
 import type { PartType } from '../config';
 
 export type UpgradeKind = 'speed' | 'fireRate' | 'shield';
@@ -10,7 +10,7 @@ export interface GameState {
     credits: number;
     parts: Record<PartType, number>;
     completed: string[]; // names of star systems you've reached
-    location: string; // where your ship is on the galaxy map
+    location: string | null; // the star system your ship is at on the galaxy map (null = not reached one yet)
     currentLevel: number; // index into LEVELS of the trip you're on (or just finished)
     hasSonicCannon: boolean;
     emShields: number;
@@ -23,7 +23,7 @@ export function newGameState(): GameState {
         credits: START_CREDITS,
         parts: Object.fromEntries(PART_TYPES.map(t => [t, 0])) as Record<PartType, number>,
         completed: [],
-        location: HOME_SYSTEM.name,
+        location: null,
         currentLevel: 0,
         hasSonicCannon: false,
         emShields: 0,
@@ -34,6 +34,13 @@ export function newGameState(): GameState {
 
 export function getGameState(scene: Phaser.Scene): GameState {
     return scene.registry.get('gameState') as GameState;
+}
+
+// Levels unlock in order, so the next one to play is the first one you haven't finished.
+// Returns LEVELS.length once you've finished them all.
+export function nextLevelIndex(state: GameState) {
+    const index = LEVELS.findIndex(level => !state.completed.includes(level.name));
+    return index === -1 ? LEVELS.length : index;
 }
 
 // How many shields you'll start your next trip with.

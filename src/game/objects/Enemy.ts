@@ -15,13 +15,16 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
     private shooter = false;
     private nextFireAt = 0;
     private enemyBullets!: Phaser.Physics.Arcade.Group;
+    private health = 1; // laser hits left before it blows up
 
     constructor(scene: Phaser.Scene, x: number, y: number) {
         super(scene, x, y, ASSET_KEYS.enemyGuard);
     }
 
-    spawn(x: number, texture: string, pattern: EnemyPattern, shooter: boolean,
+    spawn(x: number, texture: string, pattern: EnemyPattern, shooter: boolean, health: number,
           enemyBullets: Phaser.Physics.Arcade.Group, time: number) {
+        this.health = health;
+        this.clearTint();
         this.setTexture(texture);
         this.setDisplaySize(SHIP_DISPLAY_SIZE, SHIP_DISPLAY_SIZE * (this.height / this.width));
         // Pooled enemies can switch sprite, so the hitbox must be resized to match.
@@ -34,6 +37,16 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
         this.enemyBullets = enemyBullets;
         this.spawnedAt = time;
         this.nextFireAt = time + ENEMY_FIRE_INTERVAL / 2;
+    }
+
+    // A laser hit. Returns true if that was the last hit and the ship should blow up;
+    // otherwise it flashes white so you can see it got hit.
+    takeHit() {
+        this.health -= 1;
+        if (this.health <= 0) return true;
+        this.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+        this.scene.time.delayedCall(80, () => this.clearTint());
+        return false;
     }
 
     update(time: number) {
