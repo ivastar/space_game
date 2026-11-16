@@ -280,3 +280,10 @@ export const SHIPS: Record<ShipType, ShipSettings> = {
     },
 };
 export const STARTING_SHIP: ShipType = 'guard';
+
+// Phase 8: touch controls (Sasha's console design)
+export const TOUCH_CONSOLE_HEIGHT = 230; // px; the console sits along the bottom of the screen
+export const TOUCH_WHEEL_RANGE = 60; // px you drag the steering wheel for full speed
+
+// Phase 13: saving progress
+export const SAVE_KEY = 'sashas-space-game-save'; // the name the saved game is stored under in the browser

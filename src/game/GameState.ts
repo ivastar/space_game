@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import {
-    PART_TYPES, START_CREDITS, PLAYER_START_SHIELDS, PLAYER_MAX_SHIELDS, LEVELS, SHIPS, STARTING_SHIP,
+    PART_TYPES, START_CREDITS, PLAYER_START_SHIELDS, PLAYER_MAX_SHIELDS, LEVELS, SHIPS, SHIP_TYPES, STARTING_SHIP, SAVE_KEY,
+    HYPERDRIVE_START_CHARGES,
 } from '../config';
 import type { PartType, ShipType } from '../config';
 
@@ -20,6 +21,8 @@ export interface GameState {
     upgrades: Record<UpgradeKind, number>; // level of each upgrade, 0 = not bought
     ownedShips: ShipType[]; // ships parked in your garage
     activeShip: ShipType; // the one you fly on your next trip
+    jumpCharges: number; // hyperdrive jumps ready to use
+    jumpTokens: number; // tokens collected towards the next jump
 }
 
 export function newGameState(): GameState {
@@ -35,11 +38,53 @@ export function newGameState(): GameState {
         upgrades: { speed: 0, fireRate: 0, shield: 0 },
         ownedShips: [STARTING_SHIP],
         activeShip: STARTING_SHIP,
+        jumpCharges: HYPERDRIVE_START_CHARGES,
+        jumpTokens: 0,
     };
 }
 
 export function getGameState(scene: Phaser.Scene): GameState {
     return scene.registry.get('gameState') as GameState;
+}
+
+// --- Saving and loading (in the browser's localStorage, so it's still there tomorrow) ---
+
+// Writes the game to the browser. If the browser won't let us (private mode, storage full),
+// the game just carries on without saving.
+export function saveGame(state: GameState) {
+    try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    } catch {
+        // can't save, never mind
+    }
+}
+
+// Reads the saved game, or returns null if there isn't one (or it's broken).
+// Anything missing from an older save gets its new-game value, so adding new things
+// to GameState later won't break old saves.
+export function loadGame(): GameState | null {
+    try {
+        const text = localStorage.getItem(SAVE_KEY);
+        if (!text) return null;
+        const saved = JSON.parse(text) as Partial<GameState>;
+        const fresh = newGameState();
+        const state: GameState = {
+            ...fresh,
+            ...saved,
+            parts: { ...fresh.parts, ...saved.parts },
+            upgrades: { ...fresh.upgrades, ...saved.upgrades },
+        };
+        // Forget ships and systems that aren't in the game any more.
+        state.ownedShips = state.ownedShips.filter(ship => SHIP_TYPES.includes(ship));
+        if (!state.ownedShips.includes(STARTING_SHIP)) state.ownedShips.unshift(STARTING_SHIP);
+        if (!state.ownedShips.includes(state.activeShip)) state.activeShip = STARTING_SHIP;
+        state.completed = state.completed.filter(name => LEVELS.some(level => level.name === name));
+        if (!LEVELS.some(level => level.name === state.location)) state.location = null;
+        if (!(state.currentLevel >= 0 && state.currentLevel < LEVELS.length)) state.currentLevel = 0;
+        return state;
+    } catch {
+        return null;
+    }
 }
 
 // Levels unlock in order, so the next one to play is the first one you haven't finished.

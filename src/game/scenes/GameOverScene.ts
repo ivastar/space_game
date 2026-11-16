@@ -1,6 +1,7 @@
 import { Scene } from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../../config';
 import { makeButton } from '../ui/makeButton';
+import { getGameState, saveGame } from '../GameState';
 
 export class GameOverScene extends Scene {
     constructor() {
@@ -8,6 +9,9 @@ export class GameOverScene extends Scene {
     }
 
     create() {
+        // You keep the parts you picked up before you were hit, so save them.
+        saveGame(getGameState(this));
+
         this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100, 'Game Over', {
             fontFamily: 'Arial Black', fontSize: 44, color: '#ff4444',
         }).setOrigin(0.5);

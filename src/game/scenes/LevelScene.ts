@@ -11,7 +11,7 @@ import {
     COIN_SPAWN_TIME, BOLT_SPAWN_TIME,
     PLAYER_MAX_SHIELDS, PICKUP_POOL_SIZE, BOOST_DURATION, BOOST_SPEED_MULTIPLIER, BOOST_TINT,
     ASTEROID_POOL_SIZE, ASTEROID_SIZE, STORM_POOL_SIZE, STORM_SIZE,
-    HYPERDRIVE_DROP_CHANCE, HYPERDRIVE_START_CHARGES, HYPERDRIVE_TOKENS_PER_JUMP, JUMP_RAMP_UP, JUMP_CRUISE, JUMP_RAMP_DOWN,
+    HYPERDRIVE_DROP_CHANCE, HYPERDRIVE_TOKENS_PER_JUMP, JUMP_RAMP_UP, JUMP_CRUISE, JUMP_RAMP_DOWN,
     JUMP_SPEED_MULTIPLIER, JUMP_OBJECTS_FADE,
     LEVELS, JUMP_DISTANCE_FACTOR, ARRIVAL_DELAY,
     SPEED_UPGRADE_STEP, FIRE_RATE_UPGRADE_STEP, SONIC_FIRE_DELAY, SONIC_POOL_SIZE,
@@ -19,10 +19,11 @@ import {
 } from '../../config';
 import { Starfield } from '../objects/Starfield';
 import type { LevelSettings, NewThing, ShipSettings } from '../../config';
-import { getGameState, startingShields } from '../GameState';
+import { getGameState, saveGame, startingShields } from '../GameState';
 import type { GameState } from '../GameState';
 import { SonicBlast } from '../objects/SonicBlast';
 import { ProgressBar } from '../ui/ProgressBar';
+import { TouchControls } from '../ui/TouchControls';
 import { Bullet } from '../objects/Bullet';
 import { Enemy } from '../objects/Enemy';
 import { EnemyBullet } from '../objects/EnemyBullet';
@@ -41,6 +42,7 @@ export class LevelScene extends Scene {
     private sonicBlasts!: Phaser.Physics.Arcade.Group;
     private lastSonicAt = 0;
     private gearText!: Phaser.GameObjects.Text;
+    private touch!: TouchControls;
     private distance = 0; // how far along the trip we are, in seconds of normal flying
     private arrived = false;
     private progressBar!: ProgressBar;
@@ -120,8 +122,10 @@ export class LevelScene extends Scene {
         this.state.extraLives = 0;
         this.invincibleUntil = 0;
         this.boostUntil = 0;
-        this.jumpCharges = HYPERDRIVE_START_CHARGES;
-        this.jumpTokens = 0;
+        // Your saved jumps. They're only written back to the game state when you arrive,
+        // so if you crash and retry you start the level with the jumps you had before.
+        this.jumpCharges = this.state.jumpCharges;
+        this.jumpTokens = this.state.jumpTokens;
         this.jumping = false;
         this.dead = false;
 
@@ -153,6 +157,8 @@ export class LevelScene extends Scene {
             fontFamily: 'Arial', fontSize: 28, color: '#ffffff',
         }).setDepth(10);
         this.updatePartsText();
+
+        this.touch = new TouchControls(this);
 
         this.gearText = this.add.text(20, 148, '', {
             fontFamily: 'Arial', fontSize: 20, color: '#9fd0ff',
@@ -211,12 +217,15 @@ export class LevelScene extends Scene {
             return;
         }
 
-        if (Phaser.Input.Keyboard.JustDown(this.jumpKey)) {
+        // Read the jump tap every frame, so an old tap can't fire off a jump later.
+        const jumpTapped = this.touch.consumeJump();
+        if (Phaser.Input.Keyboard.JustDown(this.jumpKey) || jumpTapped) {
             this.tryJump();
         }
 
-        let dx = 0;
-        let dy = 0;
+        // Steering: the touch console (if it's showing) plus the arrow keys.
+        let dx = this.touch.moveX;
+        let dy = this.touch.moveY;
         if (this.cursors.left.isDown) dx -= 1;
         if (this.cursors.right.isDown) dx += 1;
         if (this.cursors.up.isDown) dy -= 1;
@@ -229,19 +238,28 @@ export class LevelScene extends Scene {
         }
         const speed = boosted ? this.playerSpeed * BOOST_SPEED_MULTIPLIER : this.playerSpeed;
 
-        if (dx !== 0 || dy !== 0) {
-            const length = Math.sqrt(dx * dx + dy * dy);
-            this.player.x += (dx / length) * speed * dt;
-            this.player.y += (dy / length) * speed * dt;
+        // Never faster than full speed, even when pressing two directions at once.
+        const length = Math.hypot(dx, dy);
+        if (length > 1) {
+            dx /= length;
+            dy /= length;
         }
+        this.player.x += dx * speed * dt;
+        this.player.y += dy * speed * dt;
 
+        // While the touch console is showing, the ship stays above it.
+        const bottom = this.touch.visible ? this.touch.top : GAME_HEIGHT;
         this.player.x = Phaser.Math.Clamp(this.player.x, this.shipHalfWidth, GAME_WIDTH - this.shipHalfWidth);
-        this.player.y = Phaser.Math.Clamp(this.player.y, this.shipHalfHeight, GAME_HEIGHT - this.shipHalfHeight);
+        this.player.y = Phaser.Math.Clamp(this.player.y, this.shipHalfHeight, bottom - this.shipHalfHeight);
 
-        if (!this.jumping && this.cursors.space.isDown && time - this.lastFiredAt >= this.fireDelay) {
+        // Left pink button = lasers. Right pink button = sonic cannon, or lasers if you don't have one yet.
+        const hasSonic = this.state.hasSonicCannon;
+        const firing = this.cursors.space.isDown || this.touch.leftBlast || (this.touch.rightBlast && !hasSonic);
+        const firingSonic = hasSonic && (this.sonicKey.isDown || this.touch.rightBlast);
+        if (!this.jumping && firing && time - this.lastFiredAt >= this.fireDelay) {
             this.fire(time);
         }
-        if (!this.jumping && this.state.hasSonicCannon && this.sonicKey.isDown && time - this.lastSonicAt >= SONIC_FIRE_DELAY) {
+        if (!this.jumping && firingSonic && time - this.lastSonicAt >= SONIC_FIRE_DELAY) {
             this.fireSonic(time);
         }
     }
@@ -340,6 +358,9 @@ export class LevelScene extends Scene {
             this.state.completed.push(this.level.name);
         }
         this.state.location = this.level.name;
+        this.state.jumpCharges = this.jumpCharges;
+        this.state.jumpTokens = this.jumpTokens;
+        saveGame(this.state);
         this.progressBar.show(1);
         this.player.disableBody(false, false);
         this.clearSpace();
@@ -566,7 +587,7 @@ export class LevelScene extends Scene {
     // A reminder of the marketplace gear you have on board.
     private updateGearText() {
         const gear: string[] = [];
-        if (this.state.hasSonicCannon) gear.push('Sonic cannon: press X');
+        if (this.state.hasSonicCannon) gear.push(`Sonic cannon: ${this.touch.visible ? 'right pink button' : 'press X'}`);
         if (this.state.emShields > 0) gear.push(`EM shield x${this.state.emShields}`);
         this.gearText.setText(gear.join('   '));
     }

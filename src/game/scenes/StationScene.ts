@@ -6,7 +6,7 @@ import {
 import type { ShopItem, ShipType } from '../../config';
 import { makeButton } from '../ui/makeButton';
 import type { ButtonOptions } from '../ui/makeButton';
-import { getGameState } from '../GameState';
+import { getGameState, saveGame } from '../GameState';
 import type { GameState } from '../GameState';
 import { Marketplace } from '../Marketplace';
 import { Garage } from '../Garage';
@@ -60,7 +60,9 @@ export class StationScene extends Scene {
         });
     }
 
+    // Called after every sale, purchase, build and ship change, so it also saves the game.
     private redraw() {
+        saveGame(this.state);
         this.content.removeAll(true);
         this.addButton(GAME_WIDTH / 2 - 120, 130, 'Marketplace', () => this.showTab('market'),
             { width: 220, height: 56, fontSize: 24, color: this.tab === 'market' ? TAB_SELECTED_COLOR : undefined });

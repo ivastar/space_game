@@ -16,6 +16,8 @@ const config: Types.Core.GameConfig = {
     parent: 'game-container',
     backgroundColor: '#05050f',
     pixelArt: true,
+    // Several fingers at once on the touch console: steer with one, shoot with another.
+    input: { activePointers: 4 },
     physics: {
         default: 'arcade',
         arcade: { debug: false },
