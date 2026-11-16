@@ -79,6 +79,16 @@ class GameAudio {
         this.master.gain.value = this.isMuted ? 0 : 1;
 
         game.events.on(Phaser.Core.Events.STEP, () => this.scheduleMusic());
+
+        // Browsers keep sound asleep until you tap or press a key. Phaser wakes it on the
+        // first tap, but we also try on every tap and key press, in case that one was missed
+        // or the browser put the sound back to sleep (iPads do this when you switch apps).
+        const wake = () => {
+            if (ctx.state !== 'running') ctx.resume().catch(() => undefined);
+        };
+        for (const event of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+            window.addEventListener(event, wake, true);
+        }
     }
 
     get muted() {
