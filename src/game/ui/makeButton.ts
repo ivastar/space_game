@@ -1,4 +1,6 @@
 import { Scene } from 'phaser';
+import { audio } from '../GameAudio';
+import { GAME_FONT } from '../../config';
 
 export interface ButtonOptions {
     width?: number;
@@ -18,12 +20,15 @@ export function makeButton(scene: Scene, x: number, y: number, label: string, on
         .setStrokeStyle(2, enabled ? 0xffffff : 0x6a6f7b);
 
     const text = scene.add.text(x, y, label, {
-        fontFamily: 'Arial', fontSize, color: enabled ? '#ffffff' : '#8a8f9b',
+        fontFamily: GAME_FONT, fontSize, color: enabled ? '#ffffff' : '#8a8f9b',
     }).setOrigin(0.5);
 
     if (enabled) {
         rect.setInteractive({ useHandCursor: true });
-        rect.on('pointerdown', onClick);
+        rect.on('pointerdown', () => {
+            audio.play('click');
+            onClick();
+        });
         rect.on('pointerover', () => rect.setFillStyle(hoverFill));
         rect.on('pointerout', () => rect.setFillStyle(fill));
     }

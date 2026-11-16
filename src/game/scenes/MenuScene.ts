@@ -1,8 +1,10 @@
 import { Scene } from 'phaser';
-import { ASSET_KEYS, GAME_WIDTH, LEVELS, SHIP_DISPLAY_SIZE } from '../../config';
+import { ASSET_KEYS, GAME_WIDTH, GAME_FONT, LEVELS, SHIP_DISPLAY_SIZE } from '../../config';
 import { makeButton } from '../ui/makeButton';
 import { loadGame, newGameState } from '../GameState';
 import type { GameState } from '../GameState';
+import { audio } from '../GameAudio';
+import { addMuteButton } from '../ui/MuteButton';
 
 export class MenuScene extends Scene {
     constructor() {
@@ -10,8 +12,11 @@ export class MenuScene extends Scene {
     }
 
     create() {
+        audio.playMusic('calm');
+        addMuteButton(this, GAME_WIDTH - 85, 40);
+
         this.add.text(GAME_WIDTH / 2, 260, "Sasha's Space Game", {
-            fontFamily: 'Arial Black', fontSize: 44, color: '#ffffff',
+            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 44, color: '#ffffff',
             align: 'center', wordWrap: { width: GAME_WIDTH - 80 },
         }).setOrigin(0.5);
 
@@ -26,7 +31,7 @@ export class MenuScene extends Scene {
 
         makeButton(this, GAME_WIDTH / 2, 700, 'Continue', () => this.play(saved));
         this.add.text(GAME_WIDTH / 2, 760, `${saved.completed.length} of ${LEVELS.length} systems reached, ${saved.credits} credits`, {
-            fontFamily: 'Arial', fontSize: 20, color: '#aab3c5',
+            fontFamily: GAME_FONT, fontSize: 20, color: '#aab3c5',
         }).setOrigin(0.5);
 
         // New Game throws away the saved game, so it asks you to tap twice to be sure.

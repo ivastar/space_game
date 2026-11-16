@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import {
-    ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, SHIP_DISPLAY_SIZE,
+    ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, GAME_FONT, SHIP_DISPLAY_SIZE,
     PLAYER_SPEED,
     BULLET_FIRE_DELAY, BULLET_POOL_SIZE,
     ENEMY_POOL_SIZE, ENEMY_BULLET_POOL_SIZE,
@@ -24,6 +24,9 @@ import type { GameState } from '../GameState';
 import { SonicBlast } from '../objects/SonicBlast';
 import { ProgressBar } from '../ui/ProgressBar';
 import { TouchControls } from '../ui/TouchControls';
+import { Hud } from '../ui/Hud';
+import { addMuteButton } from '../ui/MuteButton';
+import { audio } from '../GameAudio';
 import { Bullet } from '../objects/Bullet';
 import { Enemy } from '../objects/Enemy';
 import { EnemyBullet } from '../objects/EnemyBullet';
@@ -41,7 +44,6 @@ export class LevelScene extends Scene {
     private sonicKey!: Phaser.Input.Keyboard.Key;
     private sonicBlasts!: Phaser.Physics.Arcade.Group;
     private lastSonicAt = 0;
-    private gearText!: Phaser.GameObjects.Text;
     private touch!: TouchControls;
     private distance = 0; // how far along the trip we are, in seconds of normal flying
     private arrived = false;
@@ -56,17 +58,14 @@ export class LevelScene extends Scene {
     private pickups!: Phaser.Physics.Arcade.Group;
     private asteroids!: Phaser.Physics.Arcade.Group;
     private storms!: Phaser.Physics.Arcade.Group;
-    private partsText!: Phaser.GameObjects.Text;
     private boostUntil = 0;
     private boosting = false;
     private ship!: ShipSettings;
     private jumpKey!: Phaser.Input.Keyboard.Key;
     private jumpCharges = 0;
     private jumpTokens = 0; // tokens collected towards the next jump
-    private tokenIcon!: Phaser.GameObjects.Image;
     private jumping = false;
-    private chargesText!: Phaser.GameObjects.Text;
-    private shieldIcons: Phaser.GameObjects.Image[] = [];
+    private hud!: Hud;
     private shields = 0;
     private invincibleUntil = 0;
     private dead = false;
@@ -151,31 +150,19 @@ export class LevelScene extends Scene {
         this.physics.add.overlap(this.player, this.asteroids, () => this.onPlayerHitsAsteroid());
         this.physics.add.overlap(this.player, this.storms, (_p, s) => this.onPlayerTouchesStorm(s as Storm));
 
-        this.progressBar = new ProgressBar(this, `Trip to ${this.level.name}`, 20, 60, 400);
-
-        this.partsText = this.add.text(20, 110, '', {
-            fontFamily: 'Arial', fontSize: 28, color: '#ffffff',
-        }).setDepth(10);
-        this.updatePartsText();
+        this.progressBar = new ProgressBar(this, `Trip to ${this.level.name}`, 20, 62);
+        addMuteButton(this, 85, 112);
+        audio.playMusic('action');
 
         this.touch = new TouchControls(this);
 
-        this.gearText = this.add.text(20, 148, '', {
-            fontFamily: 'Arial', fontSize: 20, color: '#9fd0ff',
-        }).setDepth(10);
+        // The counters in the top-right corner.
+        this.hud = new Hud(this);
+        this.hud.setLives(this.shields);
+        this.hud.setParts(this.state.parts);
+        this.hud.setJumps(this.jumpTokens, this.jumpCharges);
+        this.hud.showJumps(this.has('hyperdriveTokens'));
         this.updateGearText();
-
-        this.shieldIcons = [];
-        this.updateShieldIcons();
-
-        this.tokenIcon = this.add.image(0, 110, ASSET_KEYS.hyperdriveToken).setDepth(10);
-        this.chargesText = this.add.text(GAME_WIDTH - 20, 110, '', {
-            fontFamily: 'Arial', fontSize: 26, color: '#ffffff',
-        }).setOrigin(1, 0.5).setDepth(10);
-        this.updateChargesText();
-        // Tokens and jumps only matter once hyperdrive tokens have been introduced.
-        this.tokenIcon.setVisible(this.has('hyperdriveTokens'));
-        this.chargesText.setVisible(this.has('hyperdriveTokens'));
 
         this.showNewThingBanner();
     }
@@ -190,7 +177,7 @@ export class LevelScene extends Scene {
         const thing = NEW_THING_ORDER[this.state.currentLevel];
         if (!thing) return;
         const banner = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 150, `NEW!\n${NEW_THING_NAMES[thing]}`, {
-            fontFamily: 'Arial Black', fontSize: 32, color: '#ffe14f', align: 'center',
+            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 32, color: '#ffe14f', align: 'center',
             stroke: '#000000', strokeThickness: 6, wordWrap: { width: GAME_WIDTH - 80 },
         }).setOrigin(0.5).setDepth(10);
         this.tweens.add({
@@ -268,6 +255,7 @@ export class LevelScene extends Scene {
         const bullet = this.bullets.get() as Bullet | null;
         if (!bullet) return; // pool is full; wait for a bullet to leave the screen
         bullet.fire(this.player.x, this.player.y - this.shipHalfHeight);
+        audio.play('laser');
         this.lastFiredAt = time;
     }
 
@@ -275,6 +263,7 @@ export class LevelScene extends Scene {
         const blast = this.sonicBlasts.get() as SonicBlast | null;
         if (!blast) return;
         blast.fire(this.player.x, this.player.y - this.shipHalfHeight);
+        audio.play('sonic');
         this.lastSonicAt = time;
     }
 
@@ -312,14 +301,15 @@ export class LevelScene extends Scene {
         if (this.jumping) return;
         if (this.jumpCharges === 0) {
             // No charges: flash the counter red so you can see why nothing happened.
-            this.chargesText.setColor('#ff4444');
-            this.time.delayedCall(300, () => this.chargesText.setColor('#ffffff'));
+            this.hud.flashJumps();
+            audio.play('noJump');
             return;
         }
 
         this.jumpCharges -= 1;
-        this.updateChargesText();
+        this.hud.setJumps(this.jumpTokens, this.jumpCharges);
         this.jumping = true;
+        audio.play('jump');
 
         // No body means no collisions: you pass straight through everything during the jump.
         this.player.disableBody(false, false);
@@ -345,6 +335,7 @@ export class LevelScene extends Scene {
 
     private endJump() {
         this.jumping = false;
+        audio.play('jumpEnd');
         if (!this.arrived) {
             this.player.enableBody(); // collisions are back
         }
@@ -361,12 +352,13 @@ export class LevelScene extends Scene {
         this.state.jumpCharges = this.jumpCharges;
         this.state.jumpTokens = this.jumpTokens;
         saveGame(this.state);
+        audio.play('arrive');
         this.progressBar.show(1);
         this.player.disableBody(false, false);
         this.clearSpace();
 
         this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100, `Arriving at ${this.level.name}!`, {
-            fontFamily: 'Arial Black', fontSize: 44, color: '#ffffff',
+            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 44, color: '#ffffff',
         }).setOrigin(0.5).setDepth(10);
 
         this.tweens.add({
@@ -407,12 +399,6 @@ export class LevelScene extends Scene {
         });
     }
 
-    // e.g. "2/3   Jumps: 1" — tokens towards the next jump, and jumps you can use now.
-    private updateChargesText() {
-        this.chargesText.setText(`${this.jumpTokens}/${HYPERDRIVE_TOKENS_PER_JUMP}   Jumps: ${this.jumpCharges}`);
-        this.tokenIcon.setX(this.chargesText.x - this.chargesText.width - 22);
-    }
-
     // Calls spawn() over and over, waiting a random time in [min, max] ms in between.
     // Nothing new appears during a jump or after you've arrived.
     private spawnEvery([min, max]: [number, number], spawn: () => void) {
@@ -442,6 +428,7 @@ export class LevelScene extends Scene {
     private onBulletHitsAsteroid(bullet: Bullet) {
         if (!bullet.active || bullet.bounced) return;
         bullet.bounce();
+        audio.play('bounce');
     }
 
     private onPlayerHitsAsteroid() {
@@ -456,6 +443,7 @@ export class LevelScene extends Scene {
             this.state.emShields -= 1;
             this.updateGearText();
             storm.dispel();
+            audio.play('zap');
             return;
         }
         this.die();
@@ -465,11 +453,13 @@ export class LevelScene extends Scene {
         if (!pickup.active) return;
         pickup.disableBody(true, true);
         if (pickup.kind === 'coin') {
+            audio.play('coin');
             if (this.shields < PLAYER_MAX_SHIELDS) {
                 this.shields += 1;
-                this.updateShieldIcons();
+                this.hud.setLives(this.shields);
             }
         } else if (pickup.kind === 'bolt') {
+            audio.play('bolt');
             this.boostUntil = this.time.now + BOOST_DURATION;
             this.boosting = true;
             this.player.setTint(BOOST_TINT);
@@ -478,8 +468,11 @@ export class LevelScene extends Scene {
             if (this.jumpTokens >= HYPERDRIVE_TOKENS_PER_JUMP) {
                 this.jumpTokens = 0;
                 this.jumpCharges += 1;
+                audio.play('jumpReady');
+            } else {
+                audio.play('token');
             }
-            this.updateChargesText();
+            this.hud.setJumps(this.jumpTokens, this.jumpCharges);
         }
     }
 
@@ -503,13 +496,17 @@ export class LevelScene extends Scene {
         }
     }
 
-    private explode(x: number, y: number, color = 0xffaa33) {
-        const boom = this.add.circle(x, y, 18, color).setDepth(6);
+    // A pencil-drawn "boom" that grows and fades. A tint changes its colour (e.g. grey for rock dust).
+    private explode(x: number, y: number, tint?: number) {
+        const boom = this.add.image(x, y, ASSET_KEYS.explosion).setDepth(6).setScale(0.5);
+        boom.setRotation(Math.random() * Math.PI * 2);
+        if (tint !== undefined) boom.setTint(tint);
+        audio.play('explosion');
         this.tweens.add({
             targets: boom,
-            scale: 3,
+            scale: 1.8,
             alpha: 0,
-            duration: 300,
+            duration: 350,
             onComplete: () => boom.destroy(),
         });
     }
@@ -523,7 +520,8 @@ export class LevelScene extends Scene {
         if (!part.active) return;
         part.disableBody(true, true);
         this.state.parts[part.partType] += this.ship.partsPerPickup;
-        this.updatePartsText();
+        this.hud.setParts(this.state.parts);
+        audio.play('part');
     }
 
     private onPlayerHitByBullet(bullet: EnemyBullet) {
@@ -550,7 +548,8 @@ export class LevelScene extends Scene {
             return;
         }
         this.shields -= 1;
-        this.updateShieldIcons();
+        this.hud.setLives(this.shields);
+        audio.play('hit');
 
         this.invincibleUntil = this.time.now + PLAYER_INVINCIBLE_DURATION;
         this.tweens.add({
@@ -566,22 +565,9 @@ export class LevelScene extends Scene {
     private die() {
         this.dead = true;
         this.explode(this.player.x, this.player.y);
+        audio.play('die');
         this.player.disableBody(true, true);
         this.time.delayedCall(GAME_OVER_DELAY, () => this.scene.start('GameOverScene'));
-    }
-
-    private updateShieldIcons() {
-        for (const icon of this.shieldIcons) icon.destroy();
-        this.shieldIcons = [];
-        for (let i = 0; i < this.shields; i++) {
-            const icon = this.add.image(GAME_WIDTH - 30 - i * 38, 60, ASSET_KEYS.shieldIcon).setDepth(10);
-            this.shieldIcons.push(icon);
-        }
-    }
-
-    private updatePartsText() {
-        const total = PART_TYPES.reduce((sum, t) => sum + this.state.parts[t], 0);
-        this.partsText.setText(`Parts: ${total}`);
     }
 
     // A reminder of the marketplace gear you have on board.
@@ -589,6 +575,6 @@ export class LevelScene extends Scene {
         const gear: string[] = [];
         if (this.state.hasSonicCannon) gear.push(`Sonic cannon: ${this.touch.visible ? 'right pink button' : 'press X'}`);
         if (this.state.emShields > 0) gear.push(`EM shield x${this.state.emShields}`);
-        this.gearText.setText(gear.join('   '));
+        this.hud.setGear(gear.join('   '));
     }
 }

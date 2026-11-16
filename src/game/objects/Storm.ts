@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { ASSET_KEYS, GAME_HEIGHT, STORM_SIZE, STORM_SPEED } from '../../config';
 
-// An electromagnetic storm: a big, slow, glowing cloud. Touching it destroys
+// An electromagnetic storm: a big, slow, crackling yellow scribble. Touching it destroys
 // your ship instantly, unless you have an EM shield to absorb it.
 export class Storm extends Phaser.Physics.Arcade.Image {
     constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -11,7 +11,7 @@ export class Storm extends Phaser.Physics.Arcade.Image {
 
     spawn(x: number) {
         this.setDisplaySize(STORM_SIZE, STORM_SIZE);
-        // The glow fades out at the edges, so only the bright middle is dangerous.
+        // Only the middle is dangerous, not the tips of the zig-zags.
         this.setBodySize(this.width * 0.6, this.height * 0.6);
         this.enableBody(true, x, -STORM_SIZE / 2, true, true);
         this.setVelocity(0, STORM_SPEED);

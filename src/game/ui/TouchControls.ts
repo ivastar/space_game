@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, TOUCH_CONSOLE_HEIGHT, TOUCH_WHEEL_RANGE } from '../../config';
+import { GAME_WIDTH, GAME_HEIGHT, TOUCH_CONSOLE_HEIGHT, TOUCH_WHEEL_RANGE, GAME_FONT } from '../../config';
 
 type Control = 'leftBlast' | 'jump' | 'wheel' | 'rightBlast';
 
@@ -231,7 +231,7 @@ export class TouchControls {
         g.strokeRoundedRect(-30, -26, 60, 44, 10);
 
         const v = this.scene.add.text(0, -4, 'V', {
-            fontFamily: 'Arial Black', fontSize: 26, color: '#222222',
+            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 26, color: '#222222',
         }).setOrigin(0.5);
         return this.scene.add.container(X.wheel, Y, [g, v]);
     }

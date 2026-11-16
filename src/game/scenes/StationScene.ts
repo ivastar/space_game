@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import {
-    GAME_WIDTH, GAME_HEIGHT, LEVELS, PART_TYPES, SHOP_ITEMS, SHIPS, SHIP_TYPES, partTextureKey,
+    GAME_WIDTH, GAME_HEIGHT, GAME_FONT, LEVELS, PART_TYPES, SHOP_ITEMS, SHIPS, SHIP_TYPES, partTextureKey,
 } from '../../config';
 import type { ShopItem, ShipType } from '../../config';
 import { makeButton } from '../ui/makeButton';
@@ -10,6 +10,8 @@ import { getGameState, saveGame } from '../GameState';
 import type { GameState } from '../GameState';
 import { Marketplace } from '../Marketplace';
 import { Garage } from '../Garage';
+import { audio } from '../GameAudio';
+import { addMuteButton } from '../ui/MuteButton';
 
 type Tab = 'market' | 'garage';
 
@@ -47,9 +49,11 @@ export class StationScene extends Scene {
         this.market = new Marketplace(this.state, stationName);
         this.garage = new Garage(this.state);
         this.tab = 'market';
+        audio.playMusic('calm');
+        addMuteButton(this, GAME_WIDTH - 85, 40);
 
         this.add.text(GAME_WIDTH / 2, 60, `${stationName} Station`, {
-            fontFamily: 'Arial Black', fontSize: 40, color: '#ffffff',
+            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 40, color: '#ffffff',
         }).setOrigin(0.5);
 
         this.content = this.add.container(0, 0);
@@ -80,8 +84,8 @@ export class StationScene extends Scene {
         // Your parts, so you can see what you can build.
         PART_TYPES.forEach((part, i) => {
             const x = 80 + i * 160;
-            this.content.add(this.add.image(x, 200, partTextureKey(part)).setScale(1.2));
-            this.addText(x + 20, 200, `x${this.state.parts[part]}`, 24).setOrigin(0, 0.5);
+            this.content.add(this.add.image(x, 200, partTextureKey(part)));
+            this.addText(x + 26, 200, `x${this.state.parts[part]}`, 24).setOrigin(0, 0.5);
         });
 
         SHIP_TYPES.forEach((ship, i) => this.drawShipCard(ship, 250 + i * 205));
@@ -99,7 +103,7 @@ export class StationScene extends Scene {
         picture.setDisplaySize(settings.displayWidth, settings.displayWidth * (picture.height / picture.width));
         this.content.add(picture);
 
-        this.addText(175, top + 28, settings.name, 26, '#ffffff', 'Arial Black').setOrigin(0, 0.5);
+        this.addText(175, top + 28, settings.name, 26, '#ffffff', true).setOrigin(0, 0.5);
         this.addText(175, top + 62, settings.description, 18, '#aab3c5').setOrigin(0, 0.5);
         const lasers = Math.round(100 / settings.fireDelay);
         const shields = settings.shields >= 0 ? `+${settings.shields}` : `${settings.shields}`;
@@ -112,14 +116,14 @@ export class StationScene extends Scene {
             this.addText(175, y, 'In your garage', 20, '#c8ffd9').setOrigin(0, 0.5);
         } else {
             this.garage.recipe(ship).forEach(({ part, need, have }, j) => {
-                const x = 190 + j * 95;
+                const x = 195 + j * 100;
                 this.content.add(this.add.image(x, y, partTextureKey(part)));
-                this.addText(x + 18, y, `${have}/${need}`, 20, have >= need ? '#4fff8a' : '#ff6b6b').setOrigin(0, 0.5);
+                this.addText(x + 24, y, `${have}/${need}`, 20, have >= need ? '#4fff8a' : '#ff6b6b').setOrigin(0, 0.5);
             });
         }
 
         if (flying) {
-            this.addText(610, y, 'Flying', 24, '#4fff8a', 'Arial Black').setOrigin(0.5);
+            this.addText(610, y, 'Flying', 24, '#4fff8a', true).setOrigin(0.5);
         } else if (this.garage.owns(ship)) {
             this.addButton(610, y, 'Fly this', () => this.flyShip(ship), { width: 150, height: 50, fontSize: 22 });
         } else {
@@ -130,6 +134,7 @@ export class StationScene extends Scene {
 
     private buildShip(ship: ShipType) {
         this.garage.build(ship);
+        audio.play('build');
         this.redraw();
     }
 
@@ -153,8 +158,8 @@ export class StationScene extends Scene {
         PART_TYPES.forEach((part, i) => {
             const y = 335 + i * 64;
             const count = this.state.parts[part];
-            this.content.add(this.add.image(55, y, partTextureKey(part)).setScale(1.3));
-            this.addText(85, y, `${capitalize(part)}  x${count}`, 24).setOrigin(0, 0.5);
+            this.content.add(this.add.image(55, y, partTextureKey(part)));
+            this.addText(88, y, `${capitalize(part)}  x${count}`, 24).setOrigin(0, 0.5);
             this.addText(400, y, `${this.market.sellPrice(part)} cr`, 22, GOLD).setOrigin(1, 0.5);
             const small = { width: 120, height: 50, fontSize: 22, enabled: count > 0 };
             this.addButton(490, y, 'Sell 1', () => this.sell(part, 1), small);
@@ -179,20 +184,22 @@ export class StationScene extends Scene {
 
     private sell(part: typeof PART_TYPES[number], count: number) {
         this.market.sell(part, count);
+        audio.play('sell');
         this.redraw();
     }
 
     private buy(item: ShopItem) {
         this.market.buy(item);
+        audio.play('buy');
         this.redraw();
     }
 
     private addHeading(y: number, label: string) {
-        this.addText(40, y, label, 28, '#ffffff', 'Arial Black').setOrigin(0, 0.5);
+        this.addText(40, y, label, 28, '#ffffff', true).setOrigin(0, 0.5);
     }
 
-    private addText(x: number, y: number, label: string, fontSize: number, color = '#ffffff', fontFamily = 'Arial') {
-        const text = this.add.text(x, y, label, { fontFamily, fontSize, color });
+    private addText(x: number, y: number, label: string, fontSize: number, color = '#ffffff', bold = false) {
+        const text = this.add.text(x, y, label, { fontFamily: GAME_FONT, fontStyle: bold ? 'bold' : 'normal', fontSize, color });
         this.content.add(text);
         return text;
     }

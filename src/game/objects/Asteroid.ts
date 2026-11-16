@@ -9,6 +9,8 @@ export class Asteroid extends Phaser.Physics.Arcade.Image {
     }
 
     spawn(x: number) {
+        // Brown or grey, like the two rocks in Sasha's drawing.
+        this.setTexture(Math.random() < 0.5 ? ASSET_KEYS.asteroid : ASSET_KEYS.asteroidGrey);
         const size = Phaser.Math.Between(ASTEROID_SIZE[0], ASTEROID_SIZE[1]);
         this.setDisplaySize(size, size);
         // A bit smaller than the picture, so grazing the bumpy edge doesn't count.

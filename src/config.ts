@@ -8,22 +8,33 @@ export const GAME_HEIGHT = 1280;
 // game config so the upscale is crisp instead of blurry.
 export const SHIP_DISPLAY_SIZE = 80; // target on-screen width/height in px
 
+// Each sprite's key is also its file name: 'coin' is assets/items/coin.png.
 export const ASSET_KEYS = {
     playerShip: 'shasha_guard',
     enemyGuard: 'zak_guard',
     enemyBot: 'zak_bot_ship',
     bullet: 'bullet',
     enemyBullet: 'enemyBullet',
-    shieldIcon: 'shieldIcon',
     coin: 'coin',
     bolt: 'bolt',
     asteroid: 'asteroid',
+    asteroidGrey: 'asteroid_grey',
     storm: 'storm',
-    hyperdriveToken: 'hyperdriveToken',
-    sonicBlast: 'sonicBlast',
+    hyperdriveToken: 'hyperdrive_token',
+    sonicBlast: 'sonic_blast',
+    explosion: 'explosion',
+    lifeEmpty: 'life_empty',
+    systemDone: 'system_done',
+    systemNext: 'system_next',
+    systemLocked: 'system_locked',
+    progressEmpty: 'progress_empty',
+    progressFull: 'progress_full',
 } as const;
 
 export const partTextureKey = (type: PartType) => `part_${type}`;
+// The squares of the lives bar: life_1 is red, life_5 is green.
+export const LIFE_COLOR_COUNT = 5;
+export const lifeTextureKey = (n: number) => `life_${Math.min(n, LIFE_COLOR_COUNT)}`;
 
 // Phase 2: flying the ship
 export const PLAYER_SPEED = 320; // px/sec
@@ -56,13 +67,6 @@ export const ENEMY_BULLET_COLOR = 0x7cff4f; // green, so it's easy to tell apart
 
 export const PART_TYPES = ['engine', 'wing', 'cockpit', 'cannon'] as const;
 export type PartType = typeof PART_TYPES[number];
-export const PART_COLORS: Record<PartType, number> = {
-    engine: 0xff9a2e,
-    wing: 0x6fc3ff,
-    cockpit: 0xffe14f,
-    cannon: 0xb0b0b0,
-};
-export const PART_SIZE = 22; // px
 export const PART_FALL_SPEED = 80; // px/sec
 export const PART_POOL_SIZE = 40;
 
@@ -189,7 +193,8 @@ export const LEVELS: LevelSettings[] = [
 
 // Phase 10: galaxy map
 export const MAP_FLY_DURATION = 900; // ms for your ship to fly across the map before a level starts
-export const GALAXY_STAR_COUNT = 2600; // decorative stars in the spiral galaxy
+export const GALAXY_STAR_COUNT = 1100; // decorative pencil-square stars in the spiral galaxy
+export const GALAXY_STAR_SIZE = 4; // px; the stars sit on a grid of squares this big
 
 // Phase 11: dark marketplace
 export const START_CREDITS = 0;
@@ -287,3 +292,22 @@ export const TOUCH_WHEEL_RANGE = 60; // px you drag the steering wheel for full 
 
 // Phase 13: saving progress
 export const SAVE_KEY = 'sashas-space-game-save'; // the name the saved game is stored under in the browser
+
+// Phase 14: art and sound
+// The pencil-style sprites, loaded from public/assets/items/. Sasha can replace any of the PNG files.
+export const ITEM_SPRITES: string[] = [
+    ASSET_KEYS.coin, ASSET_KEYS.bolt, ASSET_KEYS.asteroid, ASSET_KEYS.asteroidGrey, ASSET_KEYS.storm,
+    ASSET_KEYS.hyperdriveToken, ASSET_KEYS.sonicBlast, ASSET_KEYS.explosion, ASSET_KEYS.lifeEmpty,
+    ASSET_KEYS.systemDone, ASSET_KEYS.systemNext, ASSET_KEYS.systemLocked, ASSET_KEYS.progressEmpty, ASSET_KEYS.progressFull,
+    ...PART_TYPES.map(partTextureKey),
+    ...Array.from({ length: LIFE_COLOR_COUNT }, (_, i) => lifeTextureKey(i + 1)),
+];
+// The font for all the writing in the game: chunky pixel letters that sit on the squares
+// like the sprites do. It comes with the game (see src/main.ts), so it works offline.
+export const GAME_FONT = '"Pixelify Sans", "Chalkboard SE", "Comic Sans MS", sans-serif';
+export const HUD_NUMBER_COLOR = '#ffda28'; // pencil yellow
+export const HUD_JUMP_COLOR = '#78c8f5'; // pencil light blue
+export const SFX_VOLUME = 0.6; // sound effects, 0 (silent) to 1 (loud)
+export const MUSIC_VOLUME = 0.4; // background music, 0 to 1
+export const MUSIC_TEMPO = 96; // beats per minute
+export const MUTE_KEY = 'sashas-space-game-muted'; // where the browser remembers the sound on/off button

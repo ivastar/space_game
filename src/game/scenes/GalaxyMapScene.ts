@@ -1,8 +1,12 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, LEVELS, MAP_FLY_DURATION, GALAXY_STAR_COUNT, SHIPS } from '../../config';
+import {
+    ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, GAME_FONT, LEVELS, MAP_FLY_DURATION, GALAXY_STAR_COUNT, GALAXY_STAR_SIZE, SHIPS,
+} from '../../config';
 import { makeButton } from '../ui/makeButton';
 import { getGameState, nextLevelIndex } from '../GameState';
+import { audio } from '../GameAudio';
+import { addMuteButton } from '../ui/MuteButton';
 
 interface Point {
     x: number;
@@ -54,14 +58,18 @@ function systemPositions(count: number): Point[] {
     return points;
 }
 
-const SYSTEM_STYLE: Record<SystemState, { color: number; radius: number; labelColor: string; labelSize: number }> = {
-    completed: { color: 0x4fff8a, radius: 9, labelColor: '#c8ffd9', labelSize: 16 },
-    current: { color: 0xffcc00, radius: 12, labelColor: '#ffe14f', labelSize: 22 },
-    locked: { color: 0x555c6e, radius: 6, labelColor: '#6b7286', labelSize: 15 },
+// Each kind of system has its own pencil sprite. radius is about half the sprite's size.
+const SYSTEM_STYLE: Record<SystemState, { sprite: string; radius: number; labelColor: string; labelSize: number }> = {
+    completed: { sprite: ASSET_KEYS.systemDone, radius: 13, labelColor: '#78c8f5', labelSize: 17 },
+    current: { sprite: ASSET_KEYS.systemNext, radius: 20, labelColor: '#ffda28', labelSize: 24 },
+    locked: { sprite: ASSET_KEYS.systemLocked, radius: 9, labelColor: '#8a8a90', labelSize: 15 },
 };
 
+// School-pencil colours for the galaxy's stars and the route.
+const PENCIL = { red: 0xe83030, orange: 0xf58c24, yellow: 0xffda28, blue: 0x2c6ce4, lightBlue: 0x78c8f5, paper: 0xf6f3e8, graphite: 0x3a3a3e };
+
 const SHIP_WIDTH = 48;
-const SHIP_ABOVE_DOT = 30; // the ship floats this far above the system it's at
+const SHIP_ABOVE_DOT = 36; // the ship floats this far above the system it's at
 
 export class GalaxyMapScene extends Scene {
     private ship!: Phaser.GameObjects.Image;
@@ -73,6 +81,8 @@ export class GalaxyMapScene extends Scene {
 
     create() {
         this.flying = false;
+        audio.playMusic('calm');
+        addMuteButton(this, GAME_WIDTH - 85, 40);
         const state = getGameState(this);
         const next = nextLevelIndex(state);
         const positions = systemPositions(LEVELS.length);
@@ -86,16 +96,24 @@ export class GalaxyMapScene extends Scene {
             return index === next ? 'current' : 'locked';
         };
 
-        // The route: one line from Alpha to Omega. Bright where you've flown,
-        // dashed-yellow to the next system, faint after that.
+        // The route: one pencil line from Alpha to Omega. Blue where you've flown,
+        // yellow to the next system, thin and grey after that.
         const route = this.add.graphics();
         const routePoints = [start, ...positions];
         for (let i = 1; i < routePoints.length; i++) {
             const s = stateOf(i - 1); // the system at the end of this piece of route
-            if (s === 'completed') route.lineStyle(4, 0x8fd8ff, 0.95);
-            else if (s === 'current') route.lineStyle(3, 0xffcc00, 0.8);
-            else route.lineStyle(2, 0x6b7286, 0.45);
-            route.lineBetween(routePoints[i - 1].x, routePoints[i - 1].y, routePoints[i].x, routePoints[i].y);
+            const from = routePoints[i - 1];
+            const to = routePoints[i];
+            if (s === 'locked') {
+                route.lineStyle(3, 0x8a8a90, 0.6);
+                route.lineBetween(from.x, from.y, to.x, to.y);
+                continue;
+            }
+            // A dark pencil outline with the colour on top.
+            route.lineStyle(9, PENCIL.graphite, 1);
+            route.lineBetween(from.x, from.y, to.x, to.y);
+            route.lineStyle(5, s === 'completed' ? PENCIL.lightBlue : PENCIL.yellow, 1);
+            route.lineBetween(from.x, from.y, to.x, to.y);
         }
 
         LEVELS.forEach((level, index) => this.drawSystem(level.name, positions[index], stateOf(index), index));
@@ -108,13 +126,13 @@ export class GalaxyMapScene extends Scene {
         this.tweens.add({ targets: this.ship, y: this.ship.y - 5, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
         this.add.text(GAME_WIDTH / 2, 60, 'Galaxy Map', {
-            fontFamily: 'Arial Black', fontSize: 40, color: '#ffffff',
+            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 40, color: '#ffffff',
         }).setOrigin(0.5).setDepth(6);
         const hint = next < LEVELS.length
             ? `Next stop: ${LEVELS[next].name}. Tap the glowing star!`
             : 'You reached Omega! Tap any star to fly there again.';
         this.add.text(GAME_WIDTH / 2, 108, hint, {
-            fontFamily: 'Arial', fontSize: 22, color: '#cccccc',
+            fontFamily: GAME_FONT, fontSize: 22, color: '#cccccc',
         }).setOrigin(0.5).setDepth(6);
 
         this.drawLegend(1110);
@@ -124,9 +142,10 @@ export class GalaxyMapScene extends Scene {
         });
     }
 
-    // The decorative galaxy: a glowing core, two spiral arms full of stars, some
-    // coloured gas clouds, and a few stars far away. A fixed seed means it looks
-    // the same every time.
+    // The decorative galaxy, drawn like the sprites: every star is a little pencil-coloured
+    // square sitting on a grid, as if it was coloured in on graph paper. There's a warm
+    // yellow middle, two spiral arms, and a few stars far away. A fixed seed means it
+    // looks the same every time.
     private drawGalaxy() {
         const rng = new Phaser.Math.RandomDataGenerator(['sashas-galaxy']);
         const gaussian = () => {
@@ -135,77 +154,67 @@ export class GalaxyMapScene extends Scene {
             return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng.frac());
         };
         const g = this.add.graphics().setDepth(-1);
+        const size = GALAXY_STAR_SIZE;
+        // Colours in one square of the grid. Now and then it's a bigger star, shaped like a plus.
+        const star = (x: number, y: number, color: number, alpha: number) => {
+            const gx = Math.round(x / size) * size;
+            const gy = Math.round(y / size) * size;
+            g.fillStyle(color, alpha);
+            g.fillRect(gx, gy, size, size);
+            if (rng.frac() < 0.05) {
+                g.fillRect(gx - size, gy, size * 3, size);
+                g.fillRect(gx, gy - size, size, size * 3);
+            }
+        };
 
         // Far-away background stars all over the screen.
-        for (let i = 0; i < GALAXY_STAR_COUNT * 0.06; i++) {
-            g.fillStyle(0xffffff, rng.realInRange(0.15, 0.5));
-            g.fillRect(rng.between(0, GAME_WIDTH), rng.between(0, GAME_HEIGHT), 2, 2);
+        for (let i = 0; i < GALAXY_STAR_COUNT * 0.08; i++) {
+            star(rng.between(0, GAME_WIDTH), rng.between(0, GAME_HEIGHT), PENCIL.paper, rng.realInRange(0.25, 0.6));
         }
 
-        // Coloured gas clouds along the arms.
-        for (let i = 0; i < 16; i++) {
-            const p = spiralPoint(rng.realInRange(0, 0.9), rng.pick([0, Math.PI]));
-            g.fillStyle(rng.pick([0xb06cff, 0x6c8cff, 0xff6cb5]), rng.realInRange(0.04, 0.08));
-            g.fillCircle(p.x + gaussian() * 20, p.y + gaussian() * 20, rng.between(40, 90));
+        // Crowded yellow, orange and red stars in the middle.
+        for (let i = 0; i < GALAXY_STAR_COUNT * 0.25; i++) {
+            const color = rng.pick([PENCIL.yellow, PENCIL.yellow, PENCIL.orange, PENCIL.red, PENCIL.paper]);
+            star(CENTER_X + gaussian() * 42, CENTER_Y + gaussian() * 42 * STRETCH_Y, color, rng.realInRange(0.5, 1));
         }
 
-        // The glowing core.
-        for (let r = 110; r > 0; r -= 10) {
-            g.fillStyle(0xffd9a0, 0.05);
-            g.fillEllipse(CENTER_X, CENTER_Y, r * 2, r * 2 * STRETCH_Y);
-        }
-
-        // A soft haze of stars across the whole disc.
-        for (let i = 0; i < GALAXY_STAR_COUNT * 0.12; i++) {
-            const angle = rng.frac() * Math.PI * 2;
-            const radius = Math.sqrt(rng.frac()) * OUTER_RADIUS * 1.1;
-            g.fillStyle(0xc8d8ff, rng.realInRange(0.15, 0.4));
-            g.fillRect(CENTER_X + Math.cos(angle) * radius, CENTER_Y + Math.sin(angle) * radius * STRETCH_Y, 1.5, 1.5);
-        }
-
-        // Crowded, warm-coloured stars in the middle.
-        for (let i = 0; i < GALAXY_STAR_COUNT * 0.2; i++) {
-            g.fillStyle(rng.pick([0xffe9c4, 0xfff4e0, 0xffd08a]), rng.realInRange(0.4, 0.95));
-            g.fillRect(CENTER_X + gaussian() * 45, CENTER_Y + gaussian() * 45 * STRETCH_Y, rng.realInRange(1, 2.5), rng.realInRange(1, 2.5));
-        }
-
-        // The two spiral arms: most of the stars. Arms get wider and bluer towards the edge.
-        for (let i = 0; i < GALAXY_STAR_COUNT * 0.62; i++) {
+        // The two spiral arms: blue on the outside, turning yellow towards the middle.
+        for (let i = 0; i < GALAXY_STAR_COUNT * 0.67; i++) {
             const t = rng.realInRange(-0.05, 1.02);
             const p = spiralPoint(t, i % 2 === 0 ? 0 : Math.PI);
-            const spread = 10 + 26 * (1 - t);
-            g.fillStyle(t < 0.6 ? rng.pick([0xa8c8ff, 0xffffff, 0xd0e0ff]) : rng.pick([0xffffff, 0xfff0d8]), rng.realInRange(0.3, 0.95));
-            const size = rng.frac() < 0.08 ? 3 : rng.realInRange(1, 2.2);
-            g.fillRect(p.x + gaussian() * spread, p.y + gaussian() * spread, size, size);
+            const spread = 10 + 24 * (1 - t);
+            const color = t < 0.6
+                ? rng.pick([PENCIL.blue, PENCIL.lightBlue, PENCIL.lightBlue, PENCIL.paper])
+                : rng.pick([PENCIL.yellow, PENCIL.orange, PENCIL.paper]);
+            star(p.x + gaussian() * spread, p.y + gaussian() * spread, color, rng.realInRange(0.35, 0.9));
         }
     }
 
     private drawSystem(name: string, p: Point, state: SystemState, levelIndex: number) {
         const style = SYSTEM_STYLE[state];
-        const dot = this.add.circle(p.x, p.y, style.radius, style.color).setDepth(2);
-        if (state !== 'locked') dot.setStrokeStyle(2, 0xffffff);
+        const dot = this.add.image(p.x, p.y, style.sprite).setDepth(2);
 
         // Labels sit just outside the dot, away from the centre, so they don't cover the route.
         const away = Math.atan2((p.y - CENTER_Y) / STRETCH_Y, p.x - CENTER_X);
         const labelDistance = style.radius + 16;
-        const label = state === 'completed' ? `${name} ✓` : name;
-        this.add.text(p.x + Math.cos(away) * labelDistance, p.y + Math.sin(away) * labelDistance, label, {
-            fontFamily: state === 'current' ? 'Arial Black' : 'Arial',
+        this.add.text(p.x + Math.cos(away) * labelDistance, p.y + Math.sin(away) * labelDistance, name, {
+            fontFamily: GAME_FONT,
+            fontStyle: state === 'locked' ? 'normal' : 'bold',
             fontSize: style.labelSize,
             color: style.labelColor,
-            stroke: '#000000',
-            strokeThickness: 3,
+            stroke: '#1a1a1e',
+            strokeThickness: 4,
         }).setOrigin(0.5).setDepth(3);
 
         if (state === 'current') {
-            // A pulsing ring says "fly here next".
-            const glow = this.add.circle(p.x, p.y, style.radius).setStrokeStyle(3, style.color).setDepth(1);
-            this.tweens.add({ targets: glow, scale: 2.4, alpha: 0, duration: 1100, repeat: -1 });
+            // The next star throbs to say "fly here next".
+            this.tweens.add({ targets: dot, scale: 1.3, duration: 550, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         }
 
         // Fly to the next system, or back to one you've finished to play it again.
+        // The touch area is a circle a bit bigger than the sprite, for fingers.
         if (state !== 'locked') {
-            dot.setInteractive(new Phaser.Geom.Circle(style.radius, style.radius, style.radius + 12), Phaser.Geom.Circle.Contains);
+            dot.setInteractive(new Phaser.Geom.Circle(dot.width / 2, dot.height / 2, style.radius + 14), Phaser.Geom.Circle.Contains);
             dot.input!.cursor = 'pointer';
             dot.on('pointerdown', () => this.flyTo(p, levelIndex));
         }
@@ -220,9 +229,9 @@ export class GalaxyMapScene extends Scene {
         items.forEach((item, i) => {
             const x = 150 + i * 180;
             const style = SYSTEM_STYLE[item.state];
-            this.add.circle(x, y, style.radius, style.color).setDepth(6);
-            this.add.text(x + 20, y, item.text, {
-                fontFamily: 'Arial', fontSize: 22, color: '#ffffff',
+            this.add.image(x, y, style.sprite).setDepth(6);
+            this.add.text(x + 28, y, item.text, {
+                fontFamily: GAME_FONT, fontSize: 22, color: '#ffffff',
             }).setOrigin(0, 0.5).setDepth(6);
         });
     }

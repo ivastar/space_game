@@ -4,6 +4,7 @@ import {
     ENEMY_ZIGZAG_AMPLITUDE, ENEMY_ZIGZAG_PERIOD, ENEMY_FIRE_INTERVAL,
 } from '../../config';
 import { EnemyBullet } from './EnemyBullet';
+import { audio } from '../GameAudio';
 
 export type EnemyPattern = 'straight' | 'zigzag';
 
@@ -59,7 +60,10 @@ export class Enemy extends Phaser.Physics.Arcade.Image {
 
         if (this.shooter && this.y > 0 && time >= this.nextFireAt) {
             const shot = this.enemyBullets.get() as EnemyBullet | null;
-            shot?.fire(this.x, this.y + this.displayHeight / 2);
+            if (shot) {
+                shot.fire(this.x, this.y + this.displayHeight / 2);
+                audio.play('enemyLaser');
+            }
             this.nextFireAt = time + ENEMY_FIRE_INTERVAL;
         }
 
