@@ -308,6 +308,6 @@ export const GAME_FONT = '"Pixelify Sans", "Chalkboard SE", "Comic Sans MS", san
 export const HUD_NUMBER_COLOR = '#ffda28'; // pencil yellow
 export const HUD_JUMP_COLOR = '#78c8f5'; // pencil light blue
 export const SFX_VOLUME = 0.6; // sound effects, 0 (silent) to 1 (loud)
-export const MUSIC_VOLUME = 0.4; // background music, 0 to 1
+export const MUSIC_VOLUME = 0.25; // background music, 0 to 1 (0 turns the music off but keeps the sound effects)
 export const MUSIC_TEMPO = 96; // beats per minute
 export const MUTE_KEY = 'sashas-space-game-muted'; // where the browser remembers the sound on/off button

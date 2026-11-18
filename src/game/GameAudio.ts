@@ -11,7 +11,7 @@ export type SoundName =
 // calm: menu, map and station. action: flying a level (adds drums).
 export type MusicMood = 'calm' | 'action';
 
-// --- The tune: an original space-western melody, played on a flute-like sound ---
+// --- The tune: an original space-western melody, picked out quietly on a guitar-like sound ---
 // [note, beats]. Notes are MIDI numbers (60 = middle C); 0 is a rest. 8 bars of 4 beats.
 const MELODY: [number, number][] = [
     [64, 1.5], [67, 0.5], [69, 2],
@@ -35,6 +35,7 @@ class GameAudio {
     private ctx: AudioContext | null = null;
     private master!: GainNode; // everything goes through here; the mute button turns it to 0
     private sfx!: GainNode;
+    private echo!: GainNode; // sounds sent here also bounce back a few times, like in a big empty space
     private music!: GainNode;
     private noiseBuffer!: AudioBuffer;
     private isMuted = false;
@@ -56,6 +57,19 @@ class GameAudio {
         this.sfx = ctx.createGain();
         this.sfx.gain.value = SFX_VOLUME;
         this.sfx.connect(this.master);
+        // The echo: a short delay that feeds back into itself, getting quieter and duller each time.
+        this.echo = ctx.createGain();
+        const delay = ctx.createDelay();
+        delay.delayTime.value = 0.13;
+        const feedback = ctx.createGain();
+        feedback.gain.value = 0.35;
+        const dull = ctx.createBiquadFilter();
+        dull.type = 'lowpass';
+        dull.frequency.value = 2200;
+        this.echo.connect(delay);
+        delay.connect(dull).connect(feedback).connect(delay);
+        dull.connect(this.sfx);
+
         this.music = ctx.createGain();
         this.music.gain.value = MUSIC_VOLUME;
         this.music.connect(this.master);
@@ -113,12 +127,11 @@ class GameAudio {
         if (!this.ctx || this.isMuted) return;
         const t = this.ctx.currentTime;
         switch (name) {
-            case 'laser': // a blaster "pew": a quick slide from high to low
-                this.tone('sawtooth', 1900, 260, 0.16, 0.22, t);
-                this.tone('square', 2600, 400, 0.09, 0.1, t);
+            case 'laser':
+                this.blaster(t, 1, 0.2);
                 break;
             case 'enemyLaser':
-                this.tone('square', 900, 180, 0.2, 0.08, t);
+                this.blaster(t, 0.55, 0.09);
                 break;
             case 'sonic':
                 this.tone('sine', 420, 60, 0.5, 0.5, t);
@@ -128,10 +141,12 @@ class GameAudio {
             case 'bounce':
                 this.tone('triangle', 1500, 900, 0.05, 0.15, t);
                 break;
-            case 'explosion':
-                this.noise(0.45, 0.5, 'lowpass', 1800, 90, t);
-                this.tone('sine', 140, 40, 0.35, 0.5, t);
+            case 'explosion': { // a short, soft "poof" (a little different each time)
+                const pitch = 0.8 + Math.random() * 0.4;
+                this.noise(0.28, 0.3, 'lowpass', 1400 * pitch, 120, t);
+                this.tone('sine', 110 * pitch, 45, 0.22, 0.3, t);
                 break;
+            }
             case 'hit':
                 this.noise(0.25, 0.4, 'lowpass', 2500, 300, t);
                 this.tone('square', 320, 80, 0.3, 0.2, t);
@@ -145,20 +160,21 @@ class GameAudio {
                 this.noise(0.4, 0.3, 'highpass', 3000, 800, t);
                 this.tone('sawtooth', 1200, 100, 0.4, 0.15, t);
                 break;
+            // Pickups are all soft, bright chimes, so they sound nothing like the crashes.
             case 'part':
-                this.notes('triangle', [76, 83], 0.07, 0.25, t);
+                this.chime([84, 91], 0.06, 0.2, t);
                 break;
             case 'coin':
-                this.notes('square', [83, 88], 0.08, 0.12, t);
+                this.chime([83, 88], 0.08, 0.22, t);
                 break;
             case 'bolt':
-                this.notes('sawtooth', [64, 71, 76, 83], 0.05, 0.12, t);
+                this.chime([76, 80, 83, 88], 0.05, 0.18, t);
                 break;
             case 'token':
-                this.notes('triangle', [79, 86, 91], 0.08, 0.22, t);
+                this.chime([79, 86], 0.09, 0.22, t);
                 break;
             case 'jumpReady':
-                this.notes('triangle', [72, 76, 79, 84], 0.09, 0.25, t);
+                this.chime([72, 76, 79, 84], 0.1, 0.24, t);
                 break;
             case 'jump': // the hyperdrive winding up
                 this.noise(1.6, 0.4, 'bandpass', 150, 5000, t);
@@ -179,10 +195,10 @@ class GameAudio {
                 this.tone('triangle', 500, 350, 0.05, 0.2, t);
                 break;
             case 'sell':
-                this.notes('square', [81, 88], 0.07, 0.1, t + 0.05);
+                this.chime([81, 88], 0.07, 0.18, t + 0.05);
                 break;
             case 'buy':
-                this.notes('triangle', [72, 79, 84], 0.08, 0.22, t + 0.05);
+                this.chime([72, 79, 84], 0.08, 0.2, t + 0.05);
                 break;
             case 'build':
                 this.noise(0.12, 0.25, 'highpass', 2500, 2500, t);
@@ -207,6 +223,81 @@ class GameAudio {
         osc.connect(gain).connect(out);
         osc.start(at);
         osc.stop(at + duration + 0.02);
+    }
+
+    // A laser blaster: a hard "crack" at the start, then a buzzy note that dives from high
+    // to low through a ringing filter, with an echo. pitch 1 is yours; lower is deeper.
+    // Every shot is tuned slightly differently, so holding fire doesn't sound like a machine.
+    private blaster(at: number, pitch: number, volume: number) {
+        const ctx = this.ctx!;
+        const p = pitch * (0.94 + Math.random() * 0.12);
+        const length = 0.24;
+
+        const out = ctx.createGain();
+        out.gain.setValueAtTime(volume, at);
+        out.gain.exponentialRampToValueAtTime(0.0001, at + length);
+        out.connect(this.sfx);
+        const send = ctx.createGain();
+        send.gain.value = 0.5;
+        out.connect(send).connect(this.echo);
+
+        // The ringing filter follows the note down, which gives the "pyew" shape.
+        const ring = ctx.createBiquadFilter();
+        ring.type = 'bandpass';
+        ring.Q.value = 5;
+        ring.frequency.setValueAtTime(3200 * p, at);
+        ring.frequency.exponentialRampToValueAtTime(350 * p, at + length);
+        ring.connect(out);
+
+        // A fast wobble on the pitch makes it growl instead of whistle.
+        const growl = ctx.createOscillator();
+        growl.frequency.value = 85;
+        const growlDepth = ctx.createGain();
+        growlDepth.gain.setValueAtTime(260 * p, at);
+        growlDepth.gain.exponentialRampToValueAtTime(20, at + length);
+        growl.connect(growlDepth);
+
+        // Two buzzy notes a fifth apart, diving together.
+        for (const [wave, top] of [['sawtooth', 1500], ['square', 2250]] as const) {
+            const osc = ctx.createOscillator();
+            osc.type = wave;
+            osc.frequency.setValueAtTime(top * p, at);
+            osc.frequency.exponentialRampToValueAtTime(top * p * 0.12, at + length * 0.8);
+            growlDepth.connect(osc.frequency);
+            osc.connect(ring);
+            osc.connect(out); // a little unfiltered, for body
+            osc.start(at);
+            osc.stop(at + length + 0.02);
+        }
+        growl.start(at);
+        growl.stop(at + length + 0.02);
+
+        this.noise(0.03, volume * 1.2, 'highpass', 3500, 3500, at); // the "crack"
+    }
+
+    // Bell-like notes that ring into each other: used for everything you pick up.
+    private chime(midi: number[], each: number, volume: number, at: number) {
+        const ctx = this.ctx!;
+        midi.forEach((note, i) => {
+            const start = at + i * each;
+            const ringFor = i === midi.length - 1 ? 0.5 : 0.3;
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.linearRampToValueAtTime(volume, start + 0.006);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + ringFor);
+            gain.connect(this.sfx);
+            // The note itself plus two quieter, higher ones give it a bell's shine.
+            for (const [multiple, level] of [[1, 1], [2, 0.35], [3, 0.12]]) {
+                const osc = ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = frequency(note) * multiple;
+                const part = ctx.createGain();
+                part.gain.value = level;
+                osc.connect(part).connect(gain);
+                osc.start(start);
+                osc.stop(start + ringFor + 0.02);
+            }
+        });
     }
 
     // A quick run of notes, one after another (a jingle).
@@ -252,61 +343,50 @@ class GameAudio {
         }
     }
 
+    // The music stays in the background: a low pulse, a soft held chord, and a guitar that
+    // picks out the tune for the first half of every loop and then rests.
     private playStep(step: number, at: number, stepLength: number) {
-        const root = BASS[Math.floor(step / STEPS_PER_BAR)];
+        const bar = Math.floor(step / STEPS_PER_BAR);
+        const root = BASS[bar];
         const inBar = step % STEPS_PER_BAR;
 
-        const melody = this.melodyAt.get(step);
-        if (melody) this.flute(frequency(melody[0]), at, melody[1] * 2 * stepLength);
+        if (inBar === 0) {
+            this.tone('triangle', frequency(root), frequency(root), stepLength * 3, 0.28, at, this.music);
+            this.pad(frequency(root + 12), at, stepLength * STEPS_PER_BAR);
+            this.pad(frequency(root + 19), at, stepLength * STEPS_PER_BAR);
+        }
+        if (inBar === 5) this.tone('triangle', frequency(root), frequency(root), stepLength * 2, 0.16, at, this.music);
 
-        if (inBar === 0) this.tone('triangle', frequency(root), frequency(root), stepLength * 6, 0.3, at, this.music);
-        // A twangy guitar picking out the chord.
-        if (inBar === 2) this.pluck(frequency(root + 12), at);
-        if (inBar === 5) this.pluck(frequency(root + 19), at);
-        if (inBar === 7) this.pluck(frequency(root + 12), at);
+        // The tune, an octave down, for the first four bars only.
+        const melody = this.melodyAt.get(step);
+        if (melody && bar < 4) this.pluck(frequency(melody[0] - 12), at, 0.12, 0.9);
+        // In the other four bars, just a quiet twang now and then.
+        if (bar >= 4 && inBar === 3) this.pluck(frequency(root + 19), at, 0.07, 0.6);
+        if (bar >= 4 && inBar === 6) this.pluck(frequency(root + 24), at, 0.07, 0.6);
 
         if (this.mood === 'action') {
-            if (inBar === 0 || inBar === 3 || inBar === 4) this.tone('sine', 120, 50, 0.22, 0.5, at, this.music); // drum
-            if (inBar === 6) this.tone('sine', 180, 90, 0.15, 0.3, at, this.music); // higher drum
-            this.noise(0.04, inBar % 2 === 0 ? 0.06 : 0.03, 'highpass', 6000, 6000, at, this.music); // shaker
+            if (inBar === 0 || inBar === 3 || inBar === 4) this.tone('sine', 110, 48, 0.22, 0.45, at, this.music); // low drum
+            if (inBar % 2 === 0) this.noise(0.03, 0.025, 'highpass', 7000, 7000, at, this.music); // shaker
         }
     }
 
-    // A soft, breathy note with a little wobble, a bit like a wooden flute.
-    private flute(freq: number, at: number, duration: number) {
+    // A soft, steady hum that fades in and out slowly.
+    private pad(freq: number, at: number, duration: number) {
         const ctx = this.ctx!;
-        const end = at + duration;
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
         const gain = ctx.createGain();
         gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.linearRampToValueAtTime(0.22, at + 0.06);
-        gain.gain.setValueAtTime(0.22, Math.max(at + 0.06, end - 0.1));
-        gain.gain.linearRampToValueAtTime(0.0001, end);
-        gain.connect(this.music);
-
-        const wobble = ctx.createOscillator();
-        wobble.frequency.value = 5;
-        const wobbleDepth = ctx.createGain();
-        wobbleDepth.gain.value = freq * 0.006;
-        wobble.connect(wobbleDepth);
-
-        // The main note, plus a quiet one an octave higher.
-        for (const [multiple, volume] of [[1, 1], [2, 0.12]]) {
-            const osc = ctx.createOscillator();
-            osc.type = multiple === 1 ? 'triangle' : 'sine';
-            osc.frequency.value = freq * multiple;
-            wobbleDepth.connect(osc.frequency);
-            const part = ctx.createGain();
-            part.gain.value = volume;
-            osc.connect(part).connect(gain);
-            osc.start(at);
-            osc.stop(end + 0.02);
-        }
-        wobble.start(at);
-        wobble.stop(end + 0.02);
+        gain.gain.linearRampToValueAtTime(0.05, at + duration * 0.4);
+        gain.gain.linearRampToValueAtTime(0.0001, at + duration);
+        osc.connect(gain).connect(this.music);
+        osc.start(at);
+        osc.stop(at + duration + 0.02);
     }
 
     // A plucked string: bright at first, then quickly duller and quieter.
-    private pluck(freq: number, at: number) {
+    private pluck(freq: number, at: number, volume: number, ringFor: number) {
         const ctx = this.ctx!;
         const osc = ctx.createOscillator();
         osc.type = 'sawtooth';
@@ -316,11 +396,11 @@ class GameAudio {
         filter.frequency.setValueAtTime(freq * 6, at);
         filter.frequency.exponentialRampToValueAtTime(freq * 1.5, at + 0.25);
         const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.14, at);
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.6);
+        gain.gain.setValueAtTime(volume, at);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + ringFor);
         osc.connect(filter).connect(gain).connect(this.music);
         osc.start(at);
-        osc.stop(at + 0.62);
+        osc.stop(at + ringFor + 0.02);
     }
 }
 
