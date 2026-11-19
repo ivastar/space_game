@@ -17,7 +17,8 @@ const phasermsg = () => {
 }   
 
 export default defineConfig({
-    base: './',
+    // GitHub Pages serves the game from https://ivastar.github.io/space_game/
+    base: '/space_game/',
     logLevel: 'warning',
     build: {
         rollupOptions: {

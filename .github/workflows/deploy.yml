@@ -1,0 +1,45 @@
+# Phase 15: publishing. Every push to main builds the game and puts it on GitHub Pages,
+# at https://ivastar.github.io/space_game/
+name: Publish the game
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # lets you run it by hand from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one publish at a time; a newer push takes over from one still waiting.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # build-nolog: the same build, without the Phaser template's usage ping.
+      - run: npm run build-nolog
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
