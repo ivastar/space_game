@@ -27,6 +27,9 @@ const ITEM_INFO: Record<ShopItem, { name: string; description: string }> = {
 
 const GOLD = '#ffd94f';
 // The classic style's part icons are small, so they're drawn a bit bigger here.
+// The Build / Fly button on each ship card, tucked into the card's right edge.
+const CARD_BUTTON_WIDTH = 110;
+const CARD_BUTTON_X = 637;
 const PART_ICON_SCALE = isPencil ? 1 : 1.3;
 const TAB_SELECTED_COLOR = 0x3f9e5f;
 
@@ -114,24 +117,25 @@ export class StationScene extends Scene {
             .setOrigin(0, 0.5);
 
         // The recipe: each part it needs, green if you have enough, red if not.
+        // A recipe can have all four kinds of part, so they're packed close to leave room for the button.
         const y = top + 145;
         if (this.garage.owns(ship)) {
             this.addText(175, y, 'In your garage', 20, '#c8ffd9').setOrigin(0, 0.5);
         } else {
             this.garage.recipe(ship).forEach(({ part, need, have }, j) => {
-                const x = 195 + j * 100;
+                const x = 190 + j * 92;
                 this.content.add(this.add.image(x, y, partTextureKey(part)));
                 this.addText(x + 24, y, `${have}/${need}`, 20, have >= need ? '#4fff8a' : '#ff6b6b').setOrigin(0, 0.5);
             });
         }
 
         if (flying) {
-            this.addText(610, y, 'Flying', 24, '#4fff8a', true).setOrigin(0.5);
+            this.addText(CARD_BUTTON_X, y, 'Flying', 24, '#4fff8a', true).setOrigin(0.5);
         } else if (this.garage.owns(ship)) {
-            this.addButton(610, y, 'Fly this', () => this.flyShip(ship), { width: 150, height: 50, fontSize: 22 });
+            this.addButton(CARD_BUTTON_X, y, 'Fly this', () => this.flyShip(ship), { width: CARD_BUTTON_WIDTH, height: 50, fontSize: 20 });
         } else {
-            this.addButton(610, y, 'Build', () => this.buildShip(ship),
-                { width: 150, height: 50, fontSize: 22, enabled: this.garage.canBuild(ship) });
+            this.addButton(CARD_BUTTON_X, y, 'Build', () => this.buildShip(ship),
+                { width: CARD_BUTTON_WIDTH, height: 50, fontSize: 20, enabled: this.garage.canBuild(ship) });
         }
     }
 

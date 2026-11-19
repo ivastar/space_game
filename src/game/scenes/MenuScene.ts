@@ -5,7 +5,8 @@ import { loadGame, newGameState } from '../GameState';
 import type { GameState } from '../GameState';
 import { audio } from '../GameAudio';
 import { addMuteButton } from '../ui/MuteButton';
-import { font, switchStyle, GAME_STYLES, STYLE, STYLE_NAMES } from '../style';
+import { addStyleButton } from '../ui/StyleButton';
+import { font } from '../style';
 
 export class MenuScene extends Scene {
     constructor() {
@@ -24,10 +25,8 @@ export class MenuScene extends Scene {
         const ship = this.add.image(GAME_WIDTH / 2, 500, ASSET_KEYS.playerShip);
         ship.setDisplaySize(SHIP_DISPLAY_SIZE, SHIP_DISPLAY_SIZE * (ship.height / ship.width));
 
-        // Tap to see the game in its other style. The page opens again, with the same saved game.
-        const otherStyle = GAME_STYLES.find(style => style !== STYLE)!;
-        makeButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 120, `Style: ${STYLE_NAMES[STYLE]} (tap to change)`,
-            () => switchStyle(otherStyle), { width: 380, height: 56, fontSize: 22, color: 0x33415c });
+        // The pencil in the bottom-left corner switches to the game's other style.
+        addStyleButton(this, 40, GAME_HEIGHT - 40);
 
         const saved = loadGame();
         if (!saved) {

@@ -8,7 +8,6 @@ import type { GameStyle } from '../config';
 // The style is picked by the page's address: add ?style=classic or ?style=pencil to it.
 // Without that you get the style you used last time, or DEFAULT_STYLE the first time.
 export const GAME_STYLES: GameStyle[] = ['classic', 'pencil'];
-export const STYLE_NAMES: Record<GameStyle, string> = { classic: 'Classic', pencil: 'Pencil' };
 
 function isStyle(value: string | null): value is GameStyle {
     return GAME_STYLES.includes(value as GameStyle);
