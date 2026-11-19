@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { ASSET_KEYS, ASTEROID_SIZE, ASTEROID_SPEED, GAME_HEIGHT } from '../../config';
+import { isPencil } from '../style';
 
 // A space rock. It hurts to fly into, and normal lasers bounce off it —
 // only the sonic blast cannon (from the marketplace) can break it.
@@ -9,8 +10,10 @@ export class Asteroid extends Phaser.Physics.Arcade.Image {
     }
 
     spawn(x: number) {
-        // Brown or grey, like the two rocks in Sasha's drawing.
-        this.setTexture(Math.random() < 0.5 ? ASSET_KEYS.asteroid : ASSET_KEYS.asteroidGrey);
+        // In the pencil style the rock is brown or grey, like the two in Sasha's drawing.
+        if (isPencil) {
+            this.setTexture(Math.random() < 0.5 ? ASSET_KEYS.asteroid : ASSET_KEYS.asteroidGrey);
+        }
         const size = Phaser.Math.Between(ASTEROID_SIZE[0], ASTEROID_SIZE[1]);
         this.setDisplaySize(size, size);
         // A bit smaller than the picture, so grazing the bumpy edge doesn't count.

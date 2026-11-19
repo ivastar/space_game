@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import {
-    GAME_WIDTH, GAME_HEIGHT, GAME_FONT, LEVELS, PART_TYPES, SHOP_ITEMS, SHIPS, SHIP_TYPES, partTextureKey,
+    GAME_WIDTH, GAME_HEIGHT, LEVELS, PART_TYPES, SHOP_ITEMS, SHIPS, SHIP_TYPES, partTextureKey,
 } from '../../config';
 import type { ShopItem, ShipType } from '../../config';
 import { makeButton } from '../ui/makeButton';
@@ -12,6 +12,7 @@ import { Marketplace } from '../Marketplace';
 import { Garage } from '../Garage';
 import { audio } from '../GameAudio';
 import { addMuteButton } from '../ui/MuteButton';
+import { font, isPencil } from '../style';
 
 type Tab = 'market' | 'garage';
 
@@ -25,6 +26,8 @@ const ITEM_INFO: Record<ShopItem, { name: string; description: string }> = {
 };
 
 const GOLD = '#ffd94f';
+// The classic style's part icons are small, so they're drawn a bit bigger here.
+const PART_ICON_SCALE = isPencil ? 1 : 1.3;
 const TAB_SELECTED_COLOR = 0x3f9e5f;
 
 // The space station at a star system. The marketplace tab is where you sell parts for
@@ -53,7 +56,7 @@ export class StationScene extends Scene {
         addMuteButton(this, GAME_WIDTH - 85, 40);
 
         this.add.text(GAME_WIDTH / 2, 60, `${stationName} Station`, {
-            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 40, color: '#ffffff',
+            ...font(true), fontSize: 40, color: '#ffffff',
         }).setOrigin(0.5);
 
         this.content = this.add.container(0, 0);
@@ -84,7 +87,7 @@ export class StationScene extends Scene {
         // Your parts, so you can see what you can build.
         PART_TYPES.forEach((part, i) => {
             const x = 80 + i * 160;
-            this.content.add(this.add.image(x, 200, partTextureKey(part)));
+            this.content.add(this.add.image(x, 200, partTextureKey(part)).setScale(PART_ICON_SCALE));
             this.addText(x + 26, 200, `x${this.state.parts[part]}`, 24).setOrigin(0, 0.5);
         });
 
@@ -158,7 +161,7 @@ export class StationScene extends Scene {
         PART_TYPES.forEach((part, i) => {
             const y = 335 + i * 64;
             const count = this.state.parts[part];
-            this.content.add(this.add.image(55, y, partTextureKey(part)));
+            this.content.add(this.add.image(55, y, partTextureKey(part)).setScale(PART_ICON_SCALE));
             this.addText(88, y, `${capitalize(part)}  x${count}`, 24).setOrigin(0, 0.5);
             this.addText(400, y, `${this.market.sellPrice(part)} cr`, 22, GOLD).setOrigin(1, 0.5);
             const small = { width: 120, height: 50, fontSize: 22, enabled: count > 0 };
@@ -199,7 +202,7 @@ export class StationScene extends Scene {
     }
 
     private addText(x: number, y: number, label: string, fontSize: number, color = '#ffffff', bold = false) {
-        const text = this.add.text(x, y, label, { fontFamily: GAME_FONT, fontStyle: bold ? 'bold' : 'normal', fontSize, color });
+        const text = this.add.text(x, y, label, { ...font(bold), fontSize, color });
         this.content.add(text);
         return text;
     }

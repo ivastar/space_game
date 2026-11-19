@@ -4,6 +4,8 @@ import {
     GAME_FONT, HUD_NUMBER_COLOR, HUD_JUMP_COLOR, partTextureKey, lifeTextureKey,
 } from '../../config';
 import type { PartType } from '../../config';
+import { isPencil } from '../style';
+import { ClassicHud } from './ClassicHud';
 
 const RIGHT = GAME_WIDTH - 16;
 const LIVES_Y = 40;
@@ -14,9 +16,27 @@ const LIFE_SPACING = 40;
 const PART_SLOT_WIDTH = 84;
 const DEPTH = 10;
 
-// The counters in the top-right corner, like the box in Sasha's drawing:
+// The counters on screen while you fly. Each style draws them its own way.
+export interface Hud {
+    setLives(lives: number): void;
+    setParts(parts: Record<PartType, number>): void;
+    // e.g. "2/3   Jumps: 1": tokens towards the next jump, and jumps you can use now.
+    setJumps(tokens: number, jumps: number): void;
+    // Tokens and jumps are hidden until hyperdrive tokens have been introduced.
+    showJumps(visible: boolean): void;
+    // Flashes the jump counter red, so you can see why a jump didn't happen.
+    flashJumps(): void;
+    // A reminder of the marketplace gear you have on board.
+    setGear(text: string): void;
+}
+
+export function makeHud(scene: Phaser.Scene): Hud {
+    return isPencil ? new PencilHud(scene) : new ClassicHud(scene);
+}
+
+// The pencil style's counters, all in the top-right corner like the box in Sasha's drawing:
 // the lives bar, the parts you've collected, and your hyperdrive tokens and jumps.
-export class Hud {
+class PencilHud implements Hud {
     private lifeCells: Phaser.GameObjects.Image[] = [];
     private partCounts = {} as Record<PartType, Phaser.GameObjects.Text>;
     private tokenIcon: Phaser.GameObjects.Image;
@@ -54,25 +74,21 @@ export class Hud {
         }
     }
 
-    // e.g. "2/3   Jumps: 1": tokens towards the next jump, and jumps you can use now.
     setJumps(tokens: number, jumps: number) {
         this.jumpsText.setText(`${tokens}/${HYPERDRIVE_TOKENS_PER_JUMP}   Jumps: ${jumps}`);
         this.tokenIcon.setX(RIGHT - this.jumpsText.width - 26);
     }
 
-    // Tokens and jumps are hidden until hyperdrive tokens have been introduced.
     showJumps(visible: boolean) {
         this.tokenIcon.setVisible(visible);
         this.jumpsText.setVisible(visible);
     }
 
-    // Flashes the jump counter red, so you can see why a jump didn't happen.
     flashJumps() {
         this.jumpsText.setColor('#ff4444');
         this.scene.time.delayedCall(300, () => this.jumpsText.setColor(HUD_JUMP_COLOR));
     }
 
-    // A reminder of the marketplace gear you have on board.
     setGear(text: string) {
         this.gearText.setText(text);
     }

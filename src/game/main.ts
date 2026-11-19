@@ -1,10 +1,12 @@
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
-import { GalaxyMapScene } from './scenes/GalaxyMapScene';
+import { ClassicGalaxyMapScene } from './scenes/ClassicGalaxyMapScene';
+import { PencilGalaxyMapScene } from './scenes/PencilGalaxyMapScene';
 import { LevelScene } from './scenes/LevelScene';
 import { StationScene } from './scenes/StationScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
+import { isPencil } from './style';
 import { AUTO, Game, Scale, Types } from 'phaser';
 
 // Find out more information about the Game Config at:
@@ -29,7 +31,7 @@ const config: Types.Core.GameConfig = {
     scene: [
         BootScene,
         MenuScene,
-        GalaxyMapScene,
+        isPencil ? PencilGalaxyMapScene : ClassicGalaxyMapScene, // each style has its own map
         LevelScene,
         StationScene,
         GameOverScene,

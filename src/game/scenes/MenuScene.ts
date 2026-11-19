@@ -1,10 +1,11 @@
 import { Scene } from 'phaser';
-import { ASSET_KEYS, GAME_WIDTH, GAME_FONT, LEVELS, SHIP_DISPLAY_SIZE } from '../../config';
+import { ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, LEVELS, SHIP_DISPLAY_SIZE } from '../../config';
 import { makeButton } from '../ui/makeButton';
 import { loadGame, newGameState } from '../GameState';
 import type { GameState } from '../GameState';
 import { audio } from '../GameAudio';
 import { addMuteButton } from '../ui/MuteButton';
+import { font, switchStyle, GAME_STYLES, STYLE, STYLE_NAMES } from '../style';
 
 export class MenuScene extends Scene {
     constructor() {
@@ -16,12 +17,17 @@ export class MenuScene extends Scene {
         addMuteButton(this, GAME_WIDTH - 85, 40);
 
         this.add.text(GAME_WIDTH / 2, 260, "Sasha's Space Game", {
-            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 44, color: '#ffffff',
+            ...font(true), fontSize: 44, color: '#ffffff',
             align: 'center', wordWrap: { width: GAME_WIDTH - 80 },
         }).setOrigin(0.5);
 
         const ship = this.add.image(GAME_WIDTH / 2, 500, ASSET_KEYS.playerShip);
         ship.setDisplaySize(SHIP_DISPLAY_SIZE, SHIP_DISPLAY_SIZE * (ship.height / ship.width));
+
+        // Tap to see the game in its other style. The page opens again, with the same saved game.
+        const otherStyle = GAME_STYLES.find(style => style !== STYLE)!;
+        makeButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 120, `Style: ${STYLE_NAMES[STYLE]} (tap to change)`,
+            () => switchStyle(otherStyle), { width: 380, height: 56, fontSize: 22, color: 0x33415c });
 
         const saved = loadGame();
         if (!saved) {
@@ -31,7 +37,7 @@ export class MenuScene extends Scene {
 
         makeButton(this, GAME_WIDTH / 2, 700, 'Continue', () => this.play(saved));
         this.add.text(GAME_WIDTH / 2, 760, `${saved.completed.length} of ${LEVELS.length} systems reached, ${saved.credits} credits`, {
-            fontFamily: GAME_FONT, fontSize: 20, color: '#aab3c5',
+            ...font(), fontSize: 20, color: '#aab3c5',
         }).setOrigin(0.5);
 
         // New Game throws away the saved game, so it asks you to tap twice to be sure.

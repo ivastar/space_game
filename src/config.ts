@@ -15,6 +15,7 @@ export const ASSET_KEYS = {
     enemyBot: 'zak_bot_ship',
     bullet: 'bullet',
     enemyBullet: 'enemyBullet',
+    shieldIcon: 'shieldIcon', // classic style only
     coin: 'coin',
     bolt: 'bolt',
     asteroid: 'asteroid',
@@ -67,6 +68,14 @@ export const ENEMY_BULLET_COLOR = 0x7cff4f; // green, so it's easy to tell apart
 
 export const PART_TYPES = ['engine', 'wing', 'cockpit', 'cannon'] as const;
 export type PartType = typeof PART_TYPES[number];
+// The classic style's part icons: a coloured shape for each kind of part.
+export const PART_COLORS: Record<PartType, number> = {
+    engine: 0xff9a2e,
+    wing: 0x6fc3ff,
+    cockpit: 0xffe14f,
+    cannon: 0xb0b0b0,
+};
+export const PART_SIZE = 22; // px
 export const PART_FALL_SPEED = 80; // px/sec
 export const PART_POOL_SIZE = 40;
 
@@ -193,7 +202,8 @@ export const LEVELS: LevelSettings[] = [
 
 // Phase 10: galaxy map
 export const MAP_FLY_DURATION = 900; // ms for your ship to fly across the map before a level starts
-export const GALAXY_STAR_COUNT = 1100; // decorative pencil-square stars in the spiral galaxy
+export const GALAXY_STAR_COUNT = 2600; // decorative stars in the classic style's spiral galaxy
+export const PENCIL_GALAXY_STAR_COUNT = 1100; // decorative pencil-square stars on the pencil style's map
 export const GALAXY_STAR_SIZE = 4; // px; the stars sit on a grid of squares this big
 
 // Phase 11: dark marketplace
@@ -294,7 +304,7 @@ export const TOUCH_WHEEL_RANGE = 60; // px you drag the steering wheel for full 
 export const SAVE_KEY = 'sashas-space-game-save'; // the name the saved game is stored under in the browser
 
 // Phase 14: art and sound
-// The pencil-style sprites, loaded from public/assets/items/. Sasha can replace any of the PNG files.
+// The pencil style's sprites, loaded from public/assets/items/. Sasha can replace any of the PNG files.
 export const ITEM_SPRITES: string[] = [
     ASSET_KEYS.coin, ASSET_KEYS.bolt, ASSET_KEYS.asteroid, ASSET_KEYS.asteroidGrey, ASSET_KEYS.storm,
     ASSET_KEYS.hyperdriveToken, ASSET_KEYS.sonicBlast, ASSET_KEYS.explosion, ASSET_KEYS.lifeEmpty,
@@ -302,7 +312,7 @@ export const ITEM_SPRITES: string[] = [
     ...PART_TYPES.map(partTextureKey),
     ...Array.from({ length: LIFE_COLOR_COUNT }, (_, i) => lifeTextureKey(i + 1)),
 ];
-// The font for all the writing in the game: chunky pixel letters that sit on the squares
+// The font for all the writing in the pencil style: chunky pixel letters that sit on the squares
 // like the sprites do. It comes with the game (see src/main.ts), so it works offline.
 export const GAME_FONT = '"Pixelify Sans", "Chalkboard SE", "Comic Sans MS", sans-serif';
 export const HUD_NUMBER_COLOR = '#ffda28'; // pencil yellow
@@ -311,3 +321,9 @@ export const SFX_VOLUME = 0.6; // sound effects, 0 (silent) to 1 (loud)
 export const MUSIC_VOLUME = 0.25; // background music, 0 to 1 (0 turns the music off but keeps the sound effects)
 export const MUSIC_TEMPO = 96; // beats per minute
 export const MUTE_KEY = 'sashas-space-game-muted'; // where the browser remembers the sound on/off button
+
+// The two styles of the game (see src/game/style.ts). Add ?style=classic or ?style=pencil
+// to the game's address to pick one.
+export type GameStyle = 'classic' | 'pencil';
+export const DEFAULT_STYLE: GameStyle = 'classic'; // the style you get the very first time
+export const STYLE_KEY = 'sashas-space-game-style'; // where the browser remembers the style you used last

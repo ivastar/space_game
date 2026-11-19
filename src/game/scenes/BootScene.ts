@@ -2,6 +2,8 @@ import { Scene } from 'phaser';
 import { ASSET_KEYS, BULLET_WIDTH, BULLET_HEIGHT, BULLET_COLOR, ENEMY_BULLET_COLOR, ITEM_SPRITES, GAME_FONT } from '../../config';
 import { newGameState } from '../GameState';
 import { audio } from '../GameAudio';
+import { isPencil } from '../style';
+import { generateClassicTextures } from '../ui/classicTextures';
 
 export class BootScene extends Scene {
     constructor() {
@@ -14,16 +16,19 @@ export class BootScene extends Scene {
         this.load.image(ASSET_KEYS.enemyGuard, 'zak_guard.png');
         this.load.image(ASSET_KEYS.enemyBot, 'zak_bot_ship.png');
 
-        // Everything else: pencil-style sprites, one PNG file each, named after its key.
-        this.load.setPath('assets/items');
-        for (const key of ITEM_SPRITES) {
-            this.load.image(key, `${key}.png`);
+        // Everything else in the pencil style: sprites, one PNG file each, named after its key.
+        if (isPencil) {
+            this.load.setPath('assets/items');
+            for (const key of ITEM_SPRITES) {
+                this.load.image(key, `${key}.png`);
+            }
         }
     }
 
     create() {
         this.generateRectTexture(ASSET_KEYS.bullet, BULLET_WIDTH, BULLET_HEIGHT, BULLET_COLOR);
         this.generateRectTexture(ASSET_KEYS.enemyBullet, BULLET_WIDTH + 2, BULLET_HEIGHT - 4, ENEMY_BULLET_COLOR);
+        if (!isPencil) generateClassicTextures(this);
 
         audio.init(this.game);
         this.registry.set('gameState', newGameState());

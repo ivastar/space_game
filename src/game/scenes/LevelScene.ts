@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { Scene } from 'phaser';
 import {
-    ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, GAME_FONT, SHIP_DISPLAY_SIZE,
+    ASSET_KEYS, GAME_WIDTH, GAME_HEIGHT, SHIP_DISPLAY_SIZE,
     PLAYER_SPEED,
     BULLET_FIRE_DELAY, BULLET_POOL_SIZE,
     ENEMY_POOL_SIZE, ENEMY_BULLET_POOL_SIZE,
@@ -24,7 +24,9 @@ import type { GameState } from '../GameState';
 import { SonicBlast } from '../objects/SonicBlast';
 import { ProgressBar } from '../ui/ProgressBar';
 import { TouchControls } from '../ui/TouchControls';
-import { Hud } from '../ui/Hud';
+import { makeHud } from '../ui/Hud';
+import type { Hud } from '../ui/Hud';
+import { font, isPencil } from '../style';
 import { addMuteButton } from '../ui/MuteButton';
 import { audio } from '../GameAudio';
 import { Bullet } from '../objects/Bullet';
@@ -150,14 +152,14 @@ export class LevelScene extends Scene {
         this.physics.add.overlap(this.player, this.asteroids, () => this.onPlayerHitsAsteroid());
         this.physics.add.overlap(this.player, this.storms, (_p, s) => this.onPlayerTouchesStorm(s as Storm));
 
-        this.progressBar = new ProgressBar(this, `Trip to ${this.level.name}`, 20, 62);
-        addMuteButton(this, 85, 112);
+        this.progressBar = new ProgressBar(this, `Trip to ${this.level.name}`, 20, isPencil ? 62 : 60);
+        // On the left under the progress bar. The classic style has its parts counter there, so it goes lower.
+        addMuteButton(this, 85, isPencil ? 112 : 204);
         audio.playMusic('action');
 
         this.touch = new TouchControls(this);
 
-        // The counters in the top-right corner.
-        this.hud = new Hud(this);
+        this.hud = makeHud(this);
         this.hud.setLives(this.shields);
         this.hud.setParts(this.state.parts);
         this.hud.setJumps(this.jumpTokens, this.jumpCharges);
@@ -177,7 +179,7 @@ export class LevelScene extends Scene {
         const thing = NEW_THING_ORDER[this.state.currentLevel];
         if (!thing) return;
         const banner = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 150, `NEW!\n${NEW_THING_NAMES[thing]}`, {
-            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 32, color: '#ffe14f', align: 'center',
+            ...font(true), fontSize: 32, color: '#ffe14f', align: 'center',
             stroke: '#000000', strokeThickness: 6, wordWrap: { width: GAME_WIDTH - 80 },
         }).setOrigin(0.5).setDepth(10);
         this.tweens.add({
@@ -358,7 +360,7 @@ export class LevelScene extends Scene {
         this.clearSpace();
 
         this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 100, `Arriving at ${this.level.name}!`, {
-            fontFamily: GAME_FONT, fontStyle: 'bold', fontSize: 44, color: '#ffffff',
+            ...font(true), fontSize: 44, color: '#ffffff',
         }).setOrigin(0.5).setDepth(10);
 
         this.tweens.add({
@@ -496,12 +498,18 @@ export class LevelScene extends Scene {
         }
     }
 
-    // A pencil-drawn "boom" that grows and fades. A tint changes its colour (e.g. grey for rock dust).
+    // A "boom" that grows and fades: pencil-drawn in the pencil style, a glowing circle in classic.
+    // A tint changes its colour (e.g. grey for rock dust).
     private explode(x: number, y: number, tint?: number) {
+        audio.play('explosion');
+        if (!isPencil) {
+            const circle = this.add.circle(x, y, 18, tint ?? 0xffaa33).setDepth(6);
+            this.tweens.add({ targets: circle, scale: 3, alpha: 0, duration: 300, onComplete: () => circle.destroy() });
+            return;
+        }
         const boom = this.add.image(x, y, ASSET_KEYS.explosion).setDepth(6).setScale(0.5);
         boom.setRotation(Math.random() * Math.PI * 2);
         if (tint !== undefined) boom.setTint(tint);
-        audio.play('explosion');
         this.tweens.add({
             targets: boom,
             scale: 1.8,
