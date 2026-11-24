@@ -1,24 +1,55 @@
-# Phaser Vite TypeScript Template
+## Sasha's Space Game
 
-This is a Phaser project template that uses Vite for bundling. It supports hot-reloading for quick development workflow, includes TypeScript support and scripts to generate production-ready builds.
+A 2D space shooter that flies through a galaxy, imagined by Sasha Davies, an 8-year-old game designer, and built together with his mom.
 
-**[This Template is also available as a JavaScript version.](https://github.com/phaserjs/template-vite)**
+**[Play the game here](https://ivastar.github.io/space_game)**
 
-### Versions
+![Sasha, game designer and playtester](profile_pic.png)
 
-This template has been updated for:
+## About Sasha
 
-- [Phaser 4](https://github.com/phaserjs/phaser)
-- [Vite 6.3.1](https://github.com/vitejs/vite)
-- [TypeScript 5.7.2](https://github.com/microsoft/TypeScript)
+Sasha (seen here in his Halloween costume) is the game designer and lead playtester. He has been drawing spaceships for his imaginary world for a really long time, and we wanted to turn those drawings into a real game you can actually fly. His favorite feature is the hyperdrive.
 
-![screenshot](screenshot.png)
+## How the Game Was Made
 
-## Requirements
+This game started with Sasha's notebook drawings. He drew the ships on paper, and then converted them into pixel art via [PixilArt](https://www.pixilart.com), so the ships you fly and fight in the game are his designs.
 
-[Node.js](https://nodejs.org) is required to install dependencies and run scripts via `npm`.
+Sasha described the overall design and ideas for the game. Then he typed the commands to Claude Code to design each individual phase of the build, and he typed the git commands to save the game stage by stage. After each stage a few handpicked testers tried it, and Sasha's feedback shaped the next changes.
 
-## Available Commands
+The game is written in TypeScript using Phaser and Vite, and it runs in the browser, either locally or hosted on a server. It was built with [Claude Code](https://claude.com/claude-code).
+
+<!--
+## The Original Drawings
+
+Here are Sasha's original notebook drawings next to the pixel art versions in the game.
+
+![Sasha's original notebook drawings of the ships](images/drawings.jpg)
+-->
+
+## How to Play
+
+You fly a ship upward through a galaxy, from star system to star system.
+
+- **Arrow keys:** fly left, right, up and down
+- **Space bar:** shoot
+- **Shift:** hyper jump
+
+## Features
+
+- 24 levels named after Greek letters, from Alpha to Omega, unlocked one after another on a galaxy-shaped map
+- Difficulty grows gradually, with one new ship or obstacle type in each level in the first 9 levels
+- Shoot the bad ships and collect the part that each one drops
+- Sell parts on the dark marketplace, or use them to build new ships and park them in your garage
+- Enemies also drop hyperdrive tokens, and three of them charge one hyper jump
+- The hyperdrive ramps up and down like in Star Wars, all the stars streak past, and nothing can hit you during the jump
+
+## Running It Locally
+
+You need [Node.js](https://nodejs.org) to install the dependencies and run the scripts with `npm`.
+
+Clone the repository, then run `npm install` in the project folder, followed by `npm run dev`. Open the address it prints in your browser (`http://localhost:8080` by default; see the Vite documentation to change the port or add SSL support).
+
+While the server is running you can edit any of the files in the `src` folder. Vite recompiles the code and reloads the browser automatically.
 
 | Command | Description |
 |---------|-------------|
@@ -28,131 +59,11 @@ This template has been updated for:
 | `npm run dev-nolog` | Launch a development web server without sending anonymous data (see "About log.js" below) |
 | `npm run build-nolog` | Create a production build in the `dist` folder without sending anonymous data (see "About log.js" below) |
 
-## Writing Code
+### About log.js
 
-After cloning the repo, run `npm install` from your project directory. Then, you can start the local development server by running `npm run dev`.
+This project started from Phaser's game template. Its `npm run dev` and `npm run build` commands run a small script, `log.js`, that sends an anonymous message to Phaser's server saying which command was run, with the Phaser version and the project name. The `-nolog` versions do the same thing without sending anything. The published game on GitHub Pages is built with `build-nolog`.
 
-The local development server runs on `http://localhost:8080` by default. Please see the Vite documentation if you wish to change this, or add SSL support.
+## License
 
-Once the server is running you can edit any of the files in the `src` folder. Vite will automatically recompile your code and then reload the browser.
+This project is released under the MIT license. The full text is in the LICENSE file in this repository.
 
-## Template Project Structure
-
-We have provided a default project structure to get you started. This is as follows:
-
-## Template Project Structure
-
-We have provided a default project structure to get you started:
-
-| Path                         | Description                                                |
-|------------------------------|------------------------------------------------------------|
-| `index.html`                 | A basic HTML page to contain the game.                     |
-| `public/assets`              | Game sprites, audio, etc. Served directly at runtime.      |
-| `public/style.css`           | Global layout styles.                                      |
-| `src/main.ts`                | Application bootstrap.                                     |
-| `src/game`                   | Folder containing the game code.                           |
-| `src/game/main.ts`           | Game entry point: configures and starts the game.          |
-| `src/game/scenes`            | Folder with all Phaser game scenes.                        | 
-
-
-## Handling Assets
-
-Vite supports loading assets via JavaScript module `import` statements.
-
-This template provides support for both embedding assets and also loading them from a static folder. To embed an asset, you can import it at the top of the JavaScript file you are using it in:
-
-```js
-import logoImg from './assets/logo.png'
-```
-
-To load static files such as audio files, videos, etc place them into the `public/assets` folder. Then you can use this path in the Loader calls within Phaser:
-
-```js
-preload ()
-{
-    //  This is an example of an imported bundled image.
-    //  Remember to import it at the top of this file
-    this.load.image('logo', logoImg);
-
-    //  This is an example of loading a static image
-    //  from the public/assets folder:
-    this.load.image('background', 'assets/bg.png');
-}
-```
-
-When you issue the `npm run build` command, all static assets are automatically copied to the `dist/assets` folder.
-
-## Deploying to Production
-
-After you run the `npm run build` command, your code will be built into a single bundle and saved to the `dist` folder, along with any other assets your project imported, or stored in the public assets folder.
-
-In order to deploy your game, you will need to upload *all* of the contents of the `dist` folder to a public facing web server.
-
-## Customizing the Template
-
-### Vite
-
-If you want to customize your build, such as adding plugin (i.e. for loading CSS or fonts), you can modify the `vite/config.*.mjs` file for cross-project changes, or you can modify and/or create new configuration files and target them in specific npm tasks inside of `package.json`. Please see the [Vite documentation](https://vitejs.dev/) for more information.
-
-## About log.js
-
-If you inspect our node scripts you will see there is a file called `log.js`. This file makes a single silent API call to a domain called `gryzor.co`. This domain is owned by Phaser Studio Inc. The domain name is a homage to one of our favorite retro games.
-
-We send the following 3 pieces of data to this API: The name of the template being used (vue, react, etc). If the build was 'dev' or 'prod' and finally the version of Phaser being used.
-
-At no point is any personal data collected or sent. We don't know about your project files, device, browser or anything else. Feel free to inspect the `log.js` file to confirm this.
-
-Why do we do this? Because being open source means we have no visible metrics about which of our templates are being used. We work hard to maintain a large and diverse set of templates for Phaser developers and this is our small anonymous way to determine if that work is actually paying off, or not. In short, it helps us ensure we're building the tools for you.
-
-However, if you don't want to send any data, you can use these commands instead:
-
-Dev:
-
-```bash
-npm run dev-nolog
-```
-
-Build:
-
-```bash
-npm run build-nolog
-```
-
-Or, to disable the log entirely, simply delete the file `log.js` and remove the call to it in the `scripts` section of `package.json`:
-
-Before:
-
-```json
-"scripts": {
-    "dev": "node log.js dev & dev-template-script",
-    "build": "node log.js build & build-template-script"
-},
-```
-
-After:
-
-```json
-"scripts": {
-    "dev": "dev-template-script",
-    "build": "build-template-script"
-},
-```
-
-Either of these will stop `log.js` from running. If you do decide to do this, please could you at least join our Discord and tell us which template you're using! Or send us a quick email. Either will be super-helpful, thank you.
-
-## Join the Phaser Community!
-
-We love to see what developers like you create with Phaser! It really motivates us to keep improving. So please join our community and show-off your work 😄
-
-**Visit:** The [Phaser website](https://phaser.io) and follow on [Phaser Twitter](https://twitter.com/phaser_)<br />
-**Play:** Some of the amazing games [#madewithphaser](https://twitter.com/search?q=%23madewithphaser&src=typed_query&f=live)<br />
-**Learn:** [API Docs](https://newdocs.phaser.io), [Support Forum](https://phaser.discourse.group/) and [StackOverflow](https://stackoverflow.com/questions/tagged/phaser-framework)<br />
-**Discord:** Join us on [Discord](https://discord.gg/phaser)<br />
-**Code:** 2000+ [Examples](https://labs.phaser.io)<br />
-**Read:** The [Phaser World](https://phaser.io/community/newsletter) Newsletter<br />
-
-Created by [Phaser Studio](mailto:support@phaser.io). Powered by coffee, anime, pixels and love.
-
-The Phaser logo and characters are &copy; 2011 - 2025 Phaser Studio Inc.
-
-All rights reserved.
