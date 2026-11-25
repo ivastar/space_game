@@ -4,9 +4,9 @@ A 2D space shooter that flies through a galaxy, imagined by Sasha Davies, an 8-y
 
 **[Play the game here](https://ivastar.github.io/space_game)**
 
-![Sasha, game designer and playtester](profile_pic.png)
-
 ## About Sasha
+
+<img src="profile_pic.png" alt="Sasha, game designer and playtester" width="40%" align="right">
 
 Sasha (seen here in his Halloween costume) is the game designer and lead playtester. He has been drawing spaceships for his imaginary world for a really long time, and we wanted to turn those drawings into a real game you can actually fly. His favorite feature is the hyperdrive.
 
@@ -14,9 +14,9 @@ Sasha (seen here in his Halloween costume) is the game designer and lead playtes
 
 This game started with Sasha's notebook drawings. He drew the ships on paper, and then converted them into pixel art via [PixilArt](https://www.pixilart.com), so the ships you fly and fight in the game are his designs.
 
-Sasha described the overall design and ideas for the game. Then he typed the commands to Claude Code to design each individual phase of the build, and he typed the git commands to save the game stage by stage. After each stage a few handpicked testers tried it, and Sasha's feedback shaped the next changes.
+Sasha described the overall design and ideas for the game to Claude which then synthesized the ideas into a game development plan which we reviewed and refined with Sasha's vision of how the game should play. Then he typed the commands to [Claude Code](https://claude.com/claude-code) to design each individual phase of the build, and he typed the git commands to save the game stage by stage. After each stage a few handpicked testers tried it, and Sasha's feedback shaped the next changes.
 
-The game is written in TypeScript using Phaser and Vite, and it runs in the browser, either locally or hosted on a server. It was built with [Claude Code](https://claude.com/claude-code).
+The game is written in TypeScript using Phaser and Vite, and it runs in the browser, either locally or hosted on a server. 
 
 <!--
 ## The Original Drawings
