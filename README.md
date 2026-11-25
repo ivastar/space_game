@@ -6,9 +6,11 @@ A 2D space shooter that flies through a galaxy, imagined by Sasha Davies, an 8-y
 
 ## About Sasha
 
-<img src="profile_pic.png" alt="Sasha, game designer and playtester" width="40%" align="right">
+<img src="profile_pic.png" alt="Sasha, game designer and playtester" width="20%" align="right">
 
 Sasha (seen here in his Halloween costume) is the game designer and lead playtester. He has been drawing spaceships for his imaginary world for a really long time, and we wanted to turn those drawings into a real game you can actually fly. His favorite feature is the hyperdrive.
+
+<br clear="right">
 
 ## How the Game Was Made
 
